@@ -1,0 +1,138 @@
+[
+  {
+    "rule_id": "FILE-001",
+    "category": "File Structure",
+    "title": "File header requirement",
+    "rule_text": "A D2021 file must start with exactly one ZHV file header record.",
+    "recommended_action": "Reject the file and request a corrected D2021 file when the header is missing or duplicated.",
+    "source": "Sanitized D2021 File Processing Rules"
+  },
+  {
+    "rule_id": "FILE-002",
+    "category": "File Structure",
+    "title": "File trailer requirement",
+    "rule_text": "A D2021 file must end with exactly one ZPT file trailer record.",
+    "recommended_action": "Reject the file and request a corrected D2021 file when the trailer is missing or duplicated.",
+    "source": "Sanitized D2021 File Processing Rules"
+  },
+  {
+    "rule_id": "FILE-003",
+    "category": "File Structure",
+    "title": "Mandatory record hierarchy",
+    "rule_text": "A charge record must be associated with an invoice record. An invoice record must be associated with a site and at least one MPAN record.",
+    "recommended_action": "Review the CLO, MPC, BCD and CCD record sequence and identify the missing parent record.",
+    "source": "Sanitized D2021 File Processing Rules"
+  },
+  {
+    "rule_id": "INV-001",
+    "category": "Invoice",
+    "title": "Invoice number requirement",
+    "rule_text": "Every invoice must contain a non-empty invoice number that is unique within the uploaded file.",
+    "recommended_action": "Check the BCD record and confirm the invoice number and duplicate-file status.",
+    "source": "Sanitized Invoice Validation Rules"
+  },
+  {
+    "rule_id": "INV-002",
+    "category": "Invoice",
+    "title": "Invoice date validation",
+    "rule_text": "Invoice dates and invoice-period dates must use the YYYYMMDD format, and the period start date must not exceed the period end date.",
+    "recommended_action": "Verify the invoice date and billing-period values in the BCD record.",
+    "source": "Sanitized Invoice Validation Rules"
+  },
+  {
+    "rule_id": "INV-003",
+    "category": "Invoice",
+    "title": "Credit invoice sign",
+    "rule_text": "Credit invoice net, VAT and gross values must be zero or negative.",
+    "recommended_action": "Review the credit invoice values and the referenced original invoice before processing.",
+    "source": "Sanitized Invoice Type Rules"
+  },
+  {
+    "rule_id": "INV-004",
+    "category": "Invoice",
+    "title": "Rebill invoice sign",
+    "rule_text": "Rebill or replacement invoice net, VAT and gross values must be zero or positive.",
+    "recommended_action": "Review the replacement invoice values and confirm the relationship with the original invoice.",
+    "source": "Sanitized Invoice Type Rules"
+  },
+  {
+    "rule_id": "MPAN-001",
+    "category": "MPAN",
+    "title": "Core MPAN format",
+    "rule_text": "A Core MPAN must contain exactly 13 numeric digits.",
+    "recommended_action": "Verify the MPC record and correct the MPAN format before further processing.",
+    "source": "Sanitized MPAN Validation Rules"
+  },
+  {
+    "rule_id": "MPAN-002",
+    "category": "MPAN",
+    "title": "MPAN presence",
+    "rule_text": "Every invoice must be associated with at least one MPAN record.",
+    "recommended_action": "Review the CLO and MPC hierarchy and identify the missing MPAN association.",
+    "source": "Sanitized MPAN Validation Rules"
+  },
+  {
+    "rule_id": "MPAN-003",
+    "category": "MPAN",
+    "title": "MPAN active period",
+    "rule_text": "The MPAN must be active for the complete invoice billing period.",
+    "recommended_action": "Compare the invoice period with the MPAN effective-from and effective-to dates in the MPAN master data.",
+    "source": "Sanitized MPAN Validation Rules"
+  },
+  {
+    "rule_id": "FIN-001",
+    "category": "Financial",
+    "title": "Invoice financial total",
+    "rule_text": "The invoice net amount plus VAT must equal the invoice gross amount within the configured monetary tolerance.",
+    "recommended_action": "Review the BCD net, VAT and gross values and confirm the applicable rounding rule.",
+    "source": "Sanitized Financial Validation Rules"
+  },
+  {
+    "rule_id": "REC-001",
+    "category": "Reconciliation",
+    "title": "BCD and CCD reconciliation",
+    "rule_text": "The BCD final net amount must equal the sum of the associated CCD billed charge amounts within the configured tolerance.",
+    "recommended_action": "Compare every CCD amount with the BCD final net value and investigate missing, duplicated or invalid charge records.",
+    "source": "Sanitized Reconciliation Rules"
+  },
+  {
+    "rule_id": "CHG-001",
+    "category": "Charge",
+    "title": "Capacity charge review",
+    "rule_text": "An unusually high capacity charge must be reviewed against the agreed capacity, billing days, applicable rate and effective tariff period.",
+    "recommended_action": "Confirm the capacity quantity, rate, billing days and tariff effective dates.",
+    "source": "Sanitized Charge Validation Rules"
+  },
+  {
+    "rule_id": "CHG-002",
+    "category": "Charge",
+    "title": "Unit charge review",
+    "rule_text": "An unusually high unit charge must be reviewed against consumption, time-band rate and tariff effective dates.",
+    "recommended_action": "Check billed consumption and the Red, Amber or Green unit rate used for the invoice period.",
+    "source": "Sanitized Charge Validation Rules"
+  },
+  {
+    "rule_id": "CHG-003",
+    "category": "Charge",
+    "title": "Reactive charge review",
+    "rule_text": "An unusually high reactive-power charge must be reviewed against reactive consumption and the applicable reactive rate.",
+    "recommended_action": "Review reactive consumption, meter values and the reactive-power tariff.",
+    "source": "Sanitized Charge Validation Rules"
+  },
+  {
+    "rule_id": "ML-001",
+    "category": "Anomaly",
+    "title": "Statistical anomaly interpretation",
+    "rule_text": "A machine-learning anomaly indicates that an invoice differs statistically from the comparison population. It does not independently confirm a billing error or fraud.",
+    "recommended_action": "Review the unusual features and supporting invoice evidence before making a billing decision.",
+    "source": "Model Governance Rules"
+  },
+  {
+    "rule_id": "RISK-001",
+    "category": "Risk",
+    "title": "Human review requirement",
+    "rule_text": "Critical, high and medium-risk invoices must receive human review before a final processing decision is recorded.",
+    "recommended_action": "Assign the invoice to a reviewer and record the decision, comments and supporting evidence.",
+    "source": "Invoice Review Governance Rules"
+  }
+]
