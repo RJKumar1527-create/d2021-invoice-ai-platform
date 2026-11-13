@@ -20,6 +20,9 @@ __pycache__/
 .env.*
 secrets.toml
 
+data/*.db
+data/*.db-shm
+data/*.db-wal
 dist/
 build/
 '@ | Set-Content -Encoding utf8 ".gitignore"

@@ -28,6 +28,7 @@ selected_page = st.sidebar.radio(
         "6. Risk Scoring",
         "7. RAG Rule Retrieval",
         "8. Grounded AI Explanation",
+        "9. Human Review",
         "10. Final Dashboard & Report",
         "11. Model Evaluation",
     ],
@@ -73,24 +74,35 @@ elif selected_page == "7. RAG Rule Retrieval":
         run_name="__main__",
     )
     st.stop()
+
 elif selected_page == "8. Grounded AI Explanation":
     runpy.run_path(
         "page_code/8_Grounded_AI_Explanation.py",
         run_name="__main__",
     )
     st.stop()
+
+elif selected_page == "9. Human Review":
+    runpy.run_path(
+        "page_code/9_Human_Review.py",
+        run_name="__main__",
+    )
+    st.stop()
+
 elif selected_page == "10. Final Dashboard & Report":
     runpy.run_path(
-        "page_code/7_Final_Dashboard_Report.py",
+        "page_code/10_Final_Dashboard_Report.py",
         run_name="__main__",
     )
     st.stop()
+
 elif selected_page == "11. Model Evaluation":
     runpy.run_path(
-        "page_code/8_Model_Evaluation.py",
+        "page_code/11_Model_Evaluation.py",
         run_name="__main__",
     )
     st.stop()
+
 
 
 # ---------------------------------------------------------

@@ -16,53 +16,37 @@ EXPLANATION_SCHEMA = {
     "schema": {
         "type": "object",
         "properties": {
-            "summary": {
-                "type": "string"
-            },
+            "summary": {"type": "string"},
             "observed_evidence": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                }
+                "items": {"type": "string"},
             },
             "passed_controls": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                }
+                "items": {"type": "string"},
             },
             "potential_causes": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                }
+                "items": {"type": "string"},
             },
             "recommended_actions": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                }
+                "items": {"type": "string"},
             },
             "rule_citations": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                }
+                "items": {"type": "string"},
             },
             "confidence_score": {
                 "type": "number",
                 "minimum": 0,
-                "maximum": 1
+                "maximum": 1,
             },
-            "human_review_required": {
-                "type": "boolean"
-            },
+            "human_review_required": {"type": "boolean"},
             "limitations": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                }
-            }
+                "items": {"type": "string"},
+            },
         },
         "required": [
             "summary",
@@ -73,10 +57,10 @@ EXPLANATION_SCHEMA = {
             "rule_citations",
             "confidence_score",
             "human_review_required",
-            "limitations"
+            "limitations",
         ],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
 
 
@@ -87,14 +71,11 @@ def get_groq_settings():
     """Read Groq configuration from Streamlit secrets."""
     try:
         api_key = st.secrets["GROQ_API_KEY"]
-
         model_name = st.secrets.get(
             "GROQ_CHAT_MODEL",
             DEFAULT_GROQ_MODEL,
         )
-
         return api_key, model_name
-
     except (KeyError, FileNotFoundError):
         return None, DEFAULT_GROQ_MODEL
 
@@ -103,14 +84,11 @@ def get_openrouter_settings():
     """Read OpenRouter configuration from Streamlit secrets."""
     try:
         api_key = st.secrets["OPENROUTER_API_KEY"]
-
         model_name = st.secrets.get(
             "OPENROUTER_CHAT_MODEL",
             DEFAULT_OPENROUTER_MODEL,
         )
-
         return api_key, model_name
-
     except (KeyError, FileNotFoundError):
         return None, DEFAULT_OPENROUTER_MODEL
 
@@ -145,25 +123,205 @@ def safe_float(value, default=0.0):
     """Convert a value safely to float."""
     try:
         return float(value or default)
-
     except (TypeError, ValueError):
         return default
+
+
+def build_numeric_anomaly_evidence(
+    selected_invoice,
+    anomaly_results,
+    reconciliation_results,
+):
+    """
+    Build sanitized numerical evidence for root-cause analysis.
+
+    No original invoice number, MPAN, site, customer or address is
+    included in the returned object sent to an external provider.
+    """
+    anomaly_df = pd.DataFrame(anomaly_results or [])
+    reconciliation_df = pd.DataFrame(reconciliation_results or [])
+
+    if anomaly_df.empty:
+        return {
+            "available": False,
+            "reason": "Anomaly results are unavailable.",
+            "feature_comparisons": [],
+            "reconciliation": {"available": False},
+        }
+
+    if "invoice_number" not in anomaly_df.columns:
+        return {
+            "available": False,
+            "reason": "Invoice identifier is missing from anomaly results.",
+            "feature_comparisons": [],
+            "reconciliation": {"available": False},
+        }
+
+    invoice_match = anomaly_df[
+        anomaly_df["invoice_number"].astype(str)
+        == str(selected_invoice)
+    ]
+
+    if invoice_match.empty:
+        return {
+            "available": False,
+            "reason": "The selected invoice was not found in anomaly results.",
+            "feature_comparisons": [],
+            "reconciliation": {"available": False},
+        }
+
+    invoice_row = invoice_match.iloc[0]
+    matching_index = invoice_match.index[0]
+
+    feature_columns = {
+        "net_amount": "Net Amount",
+        "gross_amount": "Gross Amount",
+        "charge_count": "Charge Count",
+        "mpan_count": "MPAN Count",
+        "billing_days": "Billing Days",
+        "total_quantity": "Total Quantity",
+        "average_rate": "Average Rate",
+        "maximum_rate": "Maximum Rate",
+        "capacity_amount": "Capacity Amount",
+        "unit_rate_amount": "Unit Rate Amount",
+        "reactive_amount": "Reactive Amount",
+        "standing_amount": "Standing Amount",
+    }
+
+    comparisons = []
+
+    for column, label in feature_columns.items():
+        if column not in anomaly_df.columns:
+            continue
+
+        numeric_series = pd.to_numeric(
+            anomaly_df[column],
+            errors="coerce",
+        ).dropna()
+
+        if numeric_series.empty:
+            continue
+
+        invoice_value = safe_float(invoice_row.get(column))
+        median_value = safe_float(numeric_series.median())
+        mean_value = safe_float(numeric_series.mean())
+
+        less_than_count = int((numeric_series < invoice_value).sum())
+        equal_count = int((numeric_series == invoice_value).sum())
+        percentile_value = (
+            (less_than_count + 0.5 * equal_count)
+            / len(numeric_series)
+            * 100
+        )
+
+        if median_value == 0:
+            percentage_difference = (
+                0.0 if invoice_value == 0 else None
+            )
+        else:
+            percentage_difference = (
+                (invoice_value - median_value)
+                / abs(median_value)
+                * 100
+            )
+
+        comparisons.append(
+            {
+                "feature": label,
+                "invoice_value": round(invoice_value, 2),
+                "dataset_median": round(median_value, 2),
+                "dataset_mean": round(mean_value, 2),
+                "percentile": round(percentile_value, 2),
+                "difference_from_median_percent": (
+                    round(percentage_difference, 2)
+                    if percentage_difference is not None
+                    else None
+                ),
+            }
+        )
+
+    comparisons.sort(
+        key=lambda item: (
+            abs(item["difference_from_median_percent"])
+            if item["difference_from_median_percent"] is not None
+            else abs(item["percentile"] - 50)
+        ),
+        reverse=True,
+    )
+
+    unusual_feature_names = {
+        feature.strip()
+        for feature in str(
+            invoice_row.get("unusual_features", "")
+        ).split(",")
+        if feature.strip()
+    }
+
+    unusual_comparisons = [
+        comparison
+        for comparison in comparisons
+        if comparison["feature"] in unusual_feature_names
+    ]
+
+    if not unusual_comparisons:
+        unusual_comparisons = comparisons[:5]
+
+    reconciliation_evidence = {"available": False}
+
+    if (
+        not reconciliation_df.empty
+        and "Invoice Number" in reconciliation_df.columns
+    ):
+        reconciliation_match = reconciliation_df[
+            reconciliation_df["Invoice Number"].astype(str)
+            == str(selected_invoice)
+        ]
+
+        if not reconciliation_match.empty:
+            reconciliation_row = reconciliation_match.iloc[0]
+            reconciliation_evidence = {
+                "available": True,
+                "status": str(
+                    reconciliation_row.get("Status", "")
+                ),
+                "bcd_net": safe_float(
+                    reconciliation_row.get("BCD Net")
+                ),
+                "ccd_total": safe_float(
+                    reconciliation_row.get("CCD Total")
+                ),
+                "variance": safe_float(
+                    reconciliation_row.get("Variance")
+                ),
+                "variance_percent": safe_float(
+                    reconciliation_row.get("Variance %")
+                ),
+            }
+
+    return {
+        "available": True,
+        "anomaly_score": safe_float(
+            invoice_row.get("anomaly_score")
+        ),
+        "model_prediction": (
+            "ANOMALY"
+            if invoice_row.get("model_prediction") == -1
+            else "NORMAL"
+        ),
+        "feature_comparisons": unusual_comparisons,
+        "reconciliation": reconciliation_evidence,
+    }
 
 
 def build_sanitized_evidence(
     risk_row,
     retrieval_record,
+    numeric_evidence,
 ):
-    """
-    Build sanitized evidence for external providers.
-
-    Original invoice number, MPAN, customer name, site name,
-    address and raw D2021 records are excluded.
-    """
+    """Build sanitized evidence for external providers."""
     validation_score = safe_float(
         risk_row.get("Validation Score")
     )
-
     reconciliation_score = safe_float(
         risk_row.get("Reconciliation Score")
     )
@@ -173,9 +331,7 @@ def build_sanitized_evidence(
             "safe_invoice_alias",
             "INV-UNKNOWN",
         ),
-        "risk_level": str(
-            risk_row.get("Risk Level", "")
-        ),
+        "risk_level": str(risk_row.get("Risk Level", "")),
         "final_risk_score": safe_float(
             risk_row.get("Final Risk Score")
         ),
@@ -203,55 +359,33 @@ def build_sanitized_evidence(
             if reconciliation_score == 0
             else "A reconciliation finding exists"
         ),
+        "numeric_anomaly_evidence": numeric_evidence,
     }
 
 
 def build_rule_context(retrieved_rules):
     """Build controlled business-rule context."""
-    rule_context = []
-
-    for rule in retrieved_rules:
-        rule_context.append(
-            {
-                "rule_id": rule.get(
-                    "rule_id",
-                    "",
-                ),
-                "category": rule.get(
-                    "category",
-                    "",
-                ),
-                "title": rule.get(
-                    "title",
-                    "",
-                ),
-                "rule_text": rule.get(
-                    "rule_text",
-                    "",
-                ),
-                "recommended_action": rule.get(
-                    "recommended_action",
-                    "",
-                ),
-                "source": rule.get(
-                    "source",
-                    "",
-                ),
-                "similarity_score": safe_float(
-                    rule.get("relevance_score")
-                ),
-            }
-        )
-
-    return rule_context
+    return [
+        {
+            "rule_id": rule.get("rule_id", ""),
+            "category": rule.get("category", ""),
+            "title": rule.get("title", ""),
+            "rule_text": rule.get("rule_text", ""),
+            "recommended_action": rule.get(
+                "recommended_action",
+                "",
+            ),
+            "source": rule.get("source", ""),
+            "similarity_score": safe_float(
+                rule.get("relevance_score")
+            ),
+        }
+        for rule in retrieved_rules
+    ]
 
 
-def build_explanation_messages(
-    evidence,
-    rules,
-):
+def build_explanation_messages(evidence, rules):
     """Create one shared grounded prompt for both providers."""
-
     system_prompt = """
 You are an electricity invoice investigation assistant.
 
@@ -259,89 +393,79 @@ Explain a sanitized D2021 invoice assessment using only the invoice
 evidence and business rules supplied by the user.
 
 Mandatory requirements:
-
-1. Do not invent invoice values, MPANs, tariffs, calculations,
-   dates, identities, validation failures or business rules.
-
+1. Do not invent invoice values, MPANs, tariffs, calculations, dates,
+   identities, validation failures or business rules.
 2. Do not claim that an invoice is invalid, incorrect or fraudulent
    merely because an anomaly-detection model flagged it.
-
 3. Separate observed evidence from potential causes.
-
-4. Potential causes must be described as investigation areas.
-   They must not be described as confirmed root causes.
-
-5. Passed validation and reconciliation checks must be listed as
-   passed controls. They must not be presented as exceptions.
-
+4. Potential causes are investigation hypotheses, not confirmed root
+   causes, unless deterministic evidence directly proves the cause.
+5. Passed validation and reconciliation checks are passed controls.
+   Do not present passed controls as exceptions.
 6. Cite only rule IDs provided in the retrieved rule context.
-
-7. Do not cite every retrieved rule automatically. Cite only rules
-   directly used in the explanation.
-
-8. Recommended actions must be practical investigation activities
-   supported by supplied evidence or retrieved rules.
-
-9. If evidence is insufficient, clearly describe the limitation and
-   require human review.
-
+7. Cite only rules directly used in the explanation.
+8. Recommended actions must be supported by evidence or supplied rules.
+9. If evidence is insufficient, describe the limitation and require
+   human review.
 10. Return only valid JSON matching the requested structure.
+11. Use numeric feature comparisons to identify confirmed anomaly
+   drivers.
+12. For every important anomaly driver, state the invoice value,
+   dataset median, percentile and percentage difference when supplied.
+13. Rank potential causes from most likely to least likely.
+14. A high percentile confirms statistical unusualness but does not
+   alone confirm that the billed value is incorrect.
+15. If BCD net equals the CCD total, state that arithmetic
+   reconciliation passed and do not use it as a possible cause.
+16. Do not assign confidence above 0.95 unless deterministic reference
+   data directly supports the cause.
+17. If tariff, meter, MPAN-effective-date or approved-reference data is
+   absent, explain that the output identifies the confirmed anomaly
+   driver and likely cause, not a fully proven billing root cause.
 
 Confidence guidance:
-
-0.80 to 1.00:
-Strong direct evidence exists and retrieved rules closely match.
-
-0.60 to 0.79:
-Useful evidence exists, but the underlying cause is not confirmed.
-
-0.40 to 0.59:
-Evidence is incomplete or only weakly supports possible causes.
-
-Below 0.40:
-Evidence is insufficient for a meaningful technical explanation.
+0.80 to 0.95: strong numeric anomaly evidence and closely matching rules.
+0.60 to 0.79: useful evidence, but the underlying cause is not confirmed.
+0.40 to 0.59: incomplete or weakly supporting evidence.
+Below 0.40: insufficient evidence for a meaningful explanation.
 """.strip()
 
     user_payload = {
         "task": (
             "Generate a grounded D2021 invoice-risk explanation "
             "using only the supplied sanitized evidence and "
-            "retrieved business rules."
+            "retrieved business rules. Identify confirmed anomaly "
+            "drivers, rank likely causes, and specify verification "
+            "needed for each cause."
         ),
         "sanitized_invoice_evidence": evidence,
         "retrieved_business_rules": rules,
         "required_output": {
             "summary": "string",
             "observed_evidence": [
-                "string"
+                (
+                    "String containing the feature, invoice value, "
+                    "median, percentile and percentage difference "
+                    "when supplied."
+                )
             ],
-            "passed_controls": [
-                "string"
-            ],
+            "passed_controls": ["string"],
             "potential_causes": [
-                "string"
+                (
+                    "Ranked likely cause containing cause, supporting "
+                    "evidence and verification required."
+                )
             ],
-            "recommended_actions": [
-                "string"
-            ],
-            "rule_citations": [
-                "retrieved rule ID only"
-            ],
-            "confidence_score": (
-                "number from 0 to 1"
-            ),
+            "recommended_actions": ["string"],
+            "rule_citations": ["retrieved rule ID only"],
+            "confidence_score": "number from 0 to 1",
             "human_review_required": "boolean",
-            "limitations": [
-                "string"
-            ],
+            "limitations": ["string"],
         },
     }
 
     return [
-        {
-            "role": "system",
-            "content": system_prompt,
-        },
+        {"role": "system", "content": system_prompt},
         {
             "role": "user",
             "content": json.dumps(
@@ -354,136 +478,93 @@ Evidence is insufficient for a meaningful technical explanation.
 
 
 def extract_json_object(content):
-    """
-    Extract JSON from a provider response.
-
-    This also handles responses accidentally wrapped in
-    Markdown code fences.
-    """
+    """Extract JSON, including output wrapped in Markdown fences."""
     if not content:
-        raise ValueError(
-            "The provider returned an empty response."
-        )
+        raise ValueError("The provider returned an empty response.")
 
     cleaned_content = content.strip()
 
     if cleaned_content.startswith("```json"):
         cleaned_content = cleaned_content[7:]
-
     elif cleaned_content.startswith("```"):
         cleaned_content = cleaned_content[3:]
 
     if cleaned_content.endswith("```"):
         cleaned_content = cleaned_content[:-3]
 
-    cleaned_content = cleaned_content.strip()
-
-    return json.loads(cleaned_content)
+    return json.loads(cleaned_content.strip())
 
 
 # ---------------------------------------------------------
-# Groq generation
+# Provider generation
 # ---------------------------------------------------------
-def generate_with_groq(
-    client,
-    model_name,
-    evidence,
-    rules,
-):
-    """Generate structured explanation using Groq."""
-    messages = build_explanation_messages(
-        evidence,
-        rules,
-    )
+def generate_with_groq(client, model_name, evidence, rules):
+    """Generate a structured explanation using Groq."""
+    messages = build_explanation_messages(evidence, rules)
 
     try:
         response = client.chat.completions.create(
             model=model_name,
             temperature=0.1,
-            max_tokens=1600,
+            max_tokens=2000,
             messages=messages,
             response_format={
                 "type": "json_schema",
                 "json_schema": EXPLANATION_SCHEMA,
             },
         )
-
     except Exception:
-        # Some Groq models may not support json_schema.
-        # Retry using general JSON-object mode.
         response = client.chat.completions.create(
             model=model_name,
             temperature=0.1,
-            max_tokens=1600,
+            max_tokens=2000,
             messages=messages,
-            response_format={
-                "type": "json_object"
-            },
+            response_format={"type": "json_object"},
         )
 
-    content = response.choices[0].message.content
-
-    return extract_json_object(content)
-
-
-# ---------------------------------------------------------
-# OpenRouter generation
-# ---------------------------------------------------------
-def generate_with_openrouter(
-    client,
-    model_name,
-    evidence,
-    rules,
-):
-    """Generate structured explanation using OpenRouter."""
-    messages = build_explanation_messages(
-        evidence,
-        rules,
+    return extract_json_object(
+        response.choices[0].message.content
     )
+
+
+def generate_with_openrouter(client, model_name, evidence, rules):
+    """Generate a structured explanation using OpenRouter."""
+    messages = build_explanation_messages(evidence, rules)
 
     try:
         response = client.chat.completions.create(
             model=model_name,
             temperature=0.1,
-            max_tokens=1600,
+            max_tokens=2000,
             messages=messages,
             response_format={
                 "type": "json_schema",
                 "json_schema": {
-                    "name": EXPLANATION_SCHEMA[
-                        "name"
-                    ],
+                    "name": EXPLANATION_SCHEMA["name"],
                     "strict": False,
-                    "schema": EXPLANATION_SCHEMA[
-                        "schema"
-                    ],
+                    "schema": EXPLANATION_SCHEMA["schema"],
                 },
             },
         )
-
     except Exception:
-        # The selected OpenRouter endpoint may not support
-        # JSON-schema mode. Retry with ordinary JSON mode.
         response = client.chat.completions.create(
             model=model_name,
             temperature=0.1,
-            max_tokens=1600,
+            max_tokens=2000,
             messages=messages,
-            response_format={
-                "type": "json_object"
-            },
+            response_format={"type": "json_object"},
         )
 
-    content = response.choices[0].message.content
-
-    return extract_json_object(content)
+    return extract_json_object(
+        response.choices[0].message.content
+    )
 
 
 # ---------------------------------------------------------
 # Response validation
 # ---------------------------------------------------------
 def normalize_string_list(value):
-    """Convert a provider value into a clean list of strings."""
+    """Convert provider output into a clean list of strings."""
     if value is None:
         return []
 
@@ -495,22 +576,11 @@ def normalize_string_list(value):
         ]
 
     value_string = str(value).strip()
-
-    if not value_string:
-        return []
-
-    return [value_string]
+    return [value_string] if value_string else []
 
 
-def validate_explanation(
-    explanation,
-    retrieved_rules,
-):
-    """
-    Validate generated output locally.
-
-    Unsupported rule citations are removed.
-    """
+def validate_explanation(explanation, retrieved_rules):
+    """Validate output and remove unsupported rule citations."""
     required_fields = [
         "summary",
         "observed_evidence",
@@ -540,9 +610,7 @@ def validate_explanation(
     ).strip()
 
     if not explanation["summary"]:
-        raise ValueError(
-            "The provider returned an empty summary."
-        )
+        raise ValueError("The provider returned an empty summary.")
 
     list_fields = [
         "observed_evidence",
@@ -564,35 +632,25 @@ def validate_explanation(
         if str(rule.get("rule_id", "")).strip()
     }
 
-    returned_citations = explanation.get(
-        "rule_citations",
-        [],
-    )
-
-    valid_citations = [
+    returned_citations = explanation.get("rule_citations", [])
+    explanation["rule_citations"] = [
         citation
         for citation in returned_citations
         if citation in valid_rule_ids
     ]
-
-    removed_citations = [
+    explanation["removed_unsupported_citations"] = [
         citation
         for citation in returned_citations
         if citation not in valid_rule_ids
     ]
 
-    explanation["rule_citations"] = (
-        valid_citations
-    )
-
     confidence = safe_float(
         explanation.get("confidence_score"),
         0,
     )
-
     explanation["confidence_score"] = max(
         0.0,
-        min(confidence, 1.0),
+        min(confidence, 0.95),
     )
 
     human_review_value = explanation.get(
@@ -601,14 +659,9 @@ def validate_explanation(
     )
 
     if isinstance(human_review_value, bool):
-        explanation[
-            "human_review_required"
-        ] = human_review_value
-
+        explanation["human_review_required"] = human_review_value
     else:
-        explanation[
-            "human_review_required"
-        ] = str(
+        explanation["human_review_required"] = str(
             human_review_value
         ).strip().lower() in {
             "true",
@@ -617,101 +670,117 @@ def validate_explanation(
             "required",
         }
 
-    explanation[
-        "removed_unsupported_citations"
-    ] = removed_citations
-
     return explanation
 
 
 # ---------------------------------------------------------
 # Deterministic fallback
 # ---------------------------------------------------------
-def create_fallback_explanation(
-    evidence,
-    retrieved_rules,
-):
-    """Create safe fallback when both API providers fail."""
+def create_fallback_explanation(evidence, retrieved_rules):
+    """Create a numerical evidence-based fallback explanation."""
     rule_ids = [
         rule.get("rule_id", "")
         for rule in retrieved_rules[:3]
         if rule.get("rule_id")
     ]
-
     actions = [
         rule.get("recommended_action", "")
         for rule in retrieved_rules[:3]
         if rule.get("recommended_action")
     ]
 
-    unusual_features = evidence.get(
-        "unusual_features",
-        "",
+    numeric_evidence = evidence.get(
+        "numeric_anomaly_evidence",
+        {},
+    )
+    comparisons = numeric_evidence.get(
+        "feature_comparisons",
+        [],
     )
 
-    unusual_feature_description = (
-        unusual_features
-        or "the supplied invoice features"
+    observed_evidence = [
+        f"Risk level: {evidence['risk_level']}.",
+        (
+            "Final risk score: "
+            f"{evidence['final_risk_score']:.2f}/100."
+        ),
+        (
+            "Anomaly score: "
+            f"{evidence['anomaly_score']:.2f}/100."
+        ),
+    ]
+
+    for comparison in comparisons:
+        difference = comparison.get(
+            "difference_from_median_percent"
+        )
+        difference_text = (
+            f"{difference:,.2f}%"
+            if difference is not None
+            else "not calculable because the median is zero"
+        )
+        observed_evidence.append(
+            f"{comparison['feature']}: invoice value "
+            f"{comparison['invoice_value']:,.2f}, dataset median "
+            f"{comparison['dataset_median']:,.2f}, percentile "
+            f"{comparison['percentile']:,.2f}, difference from "
+            f"median {difference_text}."
+        )
+
+    top_feature = (
+        comparisons[0]["feature"]
+        if comparisons
+        else evidence.get("unusual_features", "the supplied features")
     )
 
     return {
         "summary": (
             f"{evidence['safe_invoice_alias']} was prioritized "
-            "because the anomaly-detection model identified an "
-            f"unusual pattern involving "
-            f"{unusual_feature_description}. "
-            "The risk assessment does not confirm a billing error."
+            f"because {top_feature} and the other listed features "
+            "differ materially from the comparison population. "
+            "The arithmetic controls passed, so the finding is a "
+            "charge-pattern anomaly rather than a BCD-to-CCD "
+            "total mismatch."
         ),
-        "observed_evidence": [
-            (
-                "Risk level: "
-                f"{evidence['risk_level']}."
-            ),
-            (
-                "Final risk score: "
-                f"{evidence['final_risk_score']:.2f}/100."
-            ),
-            (
-                "Anomaly score: "
-                f"{evidence['anomaly_score']:.2f}/100."
-            ),
-            (
-                "Model result: "
-                f"{evidence['model_result']}."
-            ),
-            (
-                "Unusual features: "
-                f"{unusual_features or 'not supplied'}."
-            ),
-        ],
+        "observed_evidence": observed_evidence,
         "passed_controls": [
             evidence["validation_assessment"],
             evidence["reconciliation_assessment"],
         ],
         "potential_causes": [
             (
-                "The unusual invoice characteristics may require "
-                "comparison with source consumption, capacity, "
-                "reactive-power and tariff evidence."
-            )
+                "1. The source quantity, consumption, capacity or "
+                "reactive value may be unusually high. Verify the "
+                "source meter and billing data."
+            ),
+            (
+                "2. The effective charge rate or tariff mapping may "
+                "differ from the expected value. Verify the approved "
+                "tariff and its effective dates."
+            ),
+            (
+                "3. The values may be legitimate for this site and "
+                "period. Compare with prior invoices and operational "
+                "evidence before concluding that an error exists."
+            ),
         ],
         "recommended_actions": actions or [
-            (
-                "Perform manual review of the invoice and compare "
-                "the unusual features with supporting source data."
-            )
+            "Compare the unusual feature values with approved reference data.",
+            "Verify source meter, consumption, capacity and tariff records.",
         ],
         "rule_citations": rule_ids,
-        "confidence_score": 0.55,
+        "confidence_score": 0.72 if comparisons else 0.55,
         "human_review_required": True,
         "limitations": [
             (
-                "Both external LLM providers were unavailable, "
-                "so deterministic fallback logic was used."
+                "External LLM providers were unavailable, so the "
+                "deterministic fallback generated this explanation."
             ),
             (
-                "The supplied anomaly evidence does not confirm "
-                "the underlying cause."
+                "Without approved tariff, source meter and effective-"
+                "dated MPAN reference data, the platform identifies "
+                "the anomaly driver and likely causes but cannot fully "
+                "prove the billing root cause."
             ),
         ],
         "removed_unsupported_citations": [],
@@ -722,13 +791,11 @@ def create_fallback_explanation(
 # Display helpers
 # ---------------------------------------------------------
 def render_string_list(title, values):
-    """Display a list cleanly."""
+    """Display a string list."""
     st.markdown(f"#### {title}")
 
     if not values:
-        st.write(
-            "None identified from the supplied evidence."
-        )
+        st.write("None identified from the supplied evidence.")
         return
 
     for value in values:
@@ -739,209 +806,142 @@ def render_string_list(title, values):
 # Page
 # ---------------------------------------------------------
 st.title("D2021 Invoice Validation Platform")
-st.subheader(
-    "Step 8: Grounded AI Explanation"
-)
+st.subheader("Step 8: Grounded AI Explanation")
 
-risk_results = st.session_state.get(
-    "risk_results"
-)
-
+risk_results = st.session_state.get("risk_results")
 retrieval_results = st.session_state.get(
     "rag_retrieval_results",
     {},
 )
+anomaly_results = st.session_state.get(
+    "anomaly_results",
+    [],
+)
+reconciliation_results = st.session_state.get(
+    "reconciliation_results",
+    [],
+)
 
 if risk_results is None:
-    st.warning(
-        "Risk scoring has not been completed."
-    )
-    st.info(
-        "Complete Step 6: Risk Scoring first."
-    )
+    st.warning("Risk scoring has not been completed.")
+    st.info("Complete Step 6: Risk Scoring first.")
     st.stop()
 
 if not retrieval_results:
-    st.warning(
-        "No Gemini retrieval results are available."
-    )
+    st.warning("No Gemini retrieval results are available.")
     st.info(
-        "Open Step 7, select an invoice and run "
-        "semantic retrieval first."
+        "Open Step 7, select an invoice and run semantic "
+        "retrieval first."
     )
     st.stop()
 
 
-# ---------------------------------------------------------
-# Initialize provider chain
-# ---------------------------------------------------------
-groq_api_key, groq_model = (
-    get_groq_settings()
-)
-
-openrouter_api_key, openrouter_model = (
-    get_openrouter_settings()
-)
+groq_api_key, groq_model = get_groq_settings()
+openrouter_api_key, openrouter_model = get_openrouter_settings()
 
 groq_client = (
     get_groq_client(groq_api_key)
     if groq_api_key
     else None
 )
-
 openrouter_client = (
-    get_openrouter_client(
-        openrouter_api_key
-    )
+    get_openrouter_client(openrouter_api_key)
     if openrouter_api_key
     else None
 )
 
-
 provider1, provider2, provider3 = st.columns(3)
-
 provider1.metric(
     "Groq",
-    "Configured"
-    if groq_client
-    else "Unavailable",
+    "Configured" if groq_client else "Unavailable",
 )
-
 provider2.metric(
     "OpenRouter",
-    "Configured"
-    if openrouter_client
-    else "Unavailable",
+    "Configured" if openrouter_client else "Unavailable",
 )
-
-provider3.metric(
-    "Final Fallback",
-    "Deterministic",
-)
+provider3.metric("Final Fallback", "Deterministic")
 
 st.info(
-    "Provider order: Groq, then OpenRouter, "
-    "then deterministic fallback."
+    "Provider order: Groq, then OpenRouter, then deterministic "
+    "fallback."
 )
-
 st.caption(
-    "Only sanitized invoice evidence and Gemini-retrieved "
-    "business rules are sent to external providers. Original "
-    "invoice numbers, MPANs, customer names, site names, "
-    "addresses and raw D2021 records are not transmitted."
+    "Only sanitized invoice evidence, numerical feature comparisons "
+    "and Gemini-retrieved rules are sent externally. Original invoice "
+    "numbers, MPANs, customer names, addresses and raw D2021 records "
+    "are not transmitted."
 )
 
-
-# ---------------------------------------------------------
-# Select invoice
-# ---------------------------------------------------------
-risk_df = pd.DataFrame(
-    risk_results
-)
-
-available_invoices = list(
-    retrieval_results.keys()
-)
-
+risk_df = pd.DataFrame(risk_results)
+available_invoices = list(retrieval_results.keys())
 selected_invoice = st.selectbox(
     "Select an invoice with completed rule retrieval",
     available_invoices,
 )
 
-retrieval_record = retrieval_results[
-    selected_invoice
-]
-
+retrieval_record = retrieval_results[selected_invoice]
 risk_match = risk_df[
     risk_df["Invoice Number"].astype(str)
     == str(selected_invoice)
 ]
 
 if risk_match.empty:
-    st.error(
-        "The corresponding risk result could not be found."
-    )
+    st.error("The corresponding risk result could not be found.")
     st.stop()
 
 risk_row = risk_match.iloc[0]
-
-retrieved_rules = retrieval_record.get(
-    "retrieved_rules",
-    [],
-)
+retrieved_rules = retrieval_record.get("retrieved_rules", [])
 
 if not retrieved_rules:
     st.warning(
-        "No retrieved business rules are available for "
-        "the selected invoice."
+        "No retrieved business rules are available for the selected "
+        "invoice."
     )
-    st.info(
-        "Return to Step 7 and run semantic retrieval."
-    )
+    st.info("Return to Step 7 and run semantic retrieval.")
     st.stop()
 
+numeric_evidence = build_numeric_anomaly_evidence(
+    selected_invoice,
+    anomaly_results,
+    reconciliation_results,
+)
 evidence = build_sanitized_evidence(
     risk_row,
     retrieval_record,
+    numeric_evidence,
 )
-
-rule_context = build_rule_context(
-    retrieved_rules
-)
-
+rule_context = build_rule_context(retrieved_rules)
 
 metric1, metric2, metric3, metric4 = st.columns(4)
-
-metric1.metric(
-    "Safe Invoice Alias",
-    evidence["safe_invoice_alias"],
-)
-
-metric2.metric(
-    "Risk Level",
-    evidence["risk_level"],
-)
-
+metric1.metric("Safe Invoice Alias", evidence["safe_invoice_alias"])
+metric2.metric("Risk Level", evidence["risk_level"])
 metric3.metric(
     "Risk Score",
     f"{evidence['final_risk_score']:.2f}",
 )
+metric4.metric("Retrieved Rules", len(rule_context))
 
-metric4.metric(
-    "Retrieved Rules",
-    len(rule_context),
-)
-
-
-with st.expander(
-    "View sanitized evidence sent to the provider"
-):
+with st.expander("View sanitized evidence sent to the provider"):
     st.json(evidence)
 
+with st.expander("View numerical anomaly evidence"):
+    st.json(numeric_evidence)
 
-with st.expander(
-    "View retrieved rule context sent to the provider"
-):
+with st.expander("View retrieved rule context sent to the provider"):
     st.json(rule_context)
 
-
 generate_button = st.button(
-    "Generate Grounded Explanation",
+    "Generate Enhanced Root-Cause Explanation",
     type="primary",
     use_container_width=True,
 )
 
-
-# ---------------------------------------------------------
-# Provider failover
-# ---------------------------------------------------------
 if generate_button:
     generation_method = None
     successful_model = None
     provider_errors = []
     explanation = None
 
-    # Provider 1: Groq
     if groq_client:
         try:
             with st.spinner(
@@ -953,15 +953,12 @@ if generate_button:
                     evidence,
                     rule_context,
                 )
-
                 explanation = validate_explanation(
                     explanation,
                     retrieved_rules,
                 )
-
                 generation_method = "Groq LLM"
                 successful_model = groq_model
-
         except Exception as error:
             provider_errors.append(
                 {
@@ -970,41 +967,26 @@ if generate_button:
                     "error": str(error),
                 }
             )
-
             explanation = None
 
-    # Provider 2: OpenRouter
-    if (
-        explanation is None
-        and openrouter_client
-    ):
+    if explanation is None and openrouter_client:
         try:
             with st.spinner(
-                "Groq unavailable. Trying OpenRouter "
-                f"with {openrouter_model}..."
+                "Groq unavailable. Trying OpenRouter with "
+                f"{openrouter_model}..."
             ):
-                explanation = (
-                    generate_with_openrouter(
-                        openrouter_client,
-                        openrouter_model,
-                        evidence,
-                        rule_context,
-                    )
+                explanation = generate_with_openrouter(
+                    openrouter_client,
+                    openrouter_model,
+                    evidence,
+                    rule_context,
                 )
-
                 explanation = validate_explanation(
                     explanation,
                     retrieved_rules,
                 )
-
-                generation_method = (
-                    "OpenRouter LLM"
-                )
-
-                successful_model = (
-                    openrouter_model
-                )
-
+                generation_method = "OpenRouter LLM"
+                successful_model = openrouter_model
         except Exception as error:
             provider_errors.append(
                 {
@@ -1013,38 +995,23 @@ if generate_button:
                     "error": str(error),
                 }
             )
-
             explanation = None
 
-    # Provider 3: deterministic fallback
     if explanation is None:
         explanation = create_fallback_explanation(
             evidence,
             retrieved_rules,
         )
+        generation_method = "Deterministic Fallback"
+        successful_model = "No external model"
 
-        generation_method = (
-            "Deterministic Fallback"
-        )
+    if "grounded_ai_explanations" not in st.session_state:
+        st.session_state.grounded_ai_explanations = {}
 
-        successful_model = (
-            "No external model"
-        )
-
-    if (
-        "grounded_ai_explanations"
-        not in st.session_state
-    ):
-        st.session_state[
-            "grounded_ai_explanations"
-        ] = {}
-
-    st.session_state[
-        "grounded_ai_explanations"
-    ][selected_invoice] = {
-        "safe_invoice_alias": evidence[
-            "safe_invoice_alias"
-        ],
+    st.session_state.grounded_ai_explanations[
+        selected_invoice
+    ] = {
+        "safe_invoice_alias": evidence["safe_invoice_alias"],
         "generation_method": generation_method,
         "successful_model": successful_model,
         "groq_model": groq_model,
@@ -1053,64 +1020,39 @@ if generate_button:
             "retrieval_method",
             "",
         ),
+        "numeric_anomaly_evidence": numeric_evidence,
         "explanation": explanation,
         "provider_errors": provider_errors,
     }
 
-
-# ---------------------------------------------------------
-# Display stored result
-# ---------------------------------------------------------
 stored_result = st.session_state.get(
     "grounded_ai_explanations",
     {},
 ).get(selected_invoice)
 
-
 if stored_result:
-    explanation = stored_result[
-        "explanation"
-    ]
+    explanation = stored_result["explanation"]
 
     st.markdown("---")
-    st.subheader(
-        "Grounded AI Explanation"
-    )
+    st.subheader("Enhanced Root-Cause Explanation")
 
     info1, info2, info3 = st.columns(3)
-
     info1.metric(
         "Generation Method",
-        stored_result.get(
-            "generation_method",
-            "Unknown",
-        ),
+        stored_result.get("generation_method", "Unknown"),
     )
-
     info2.metric(
         "Successful Model",
-        stored_result.get(
-            "successful_model",
-            "Unknown",
-        ),
+        stored_result.get("successful_model", "Unknown"),
     )
-
     info3.metric(
-        "Confidence",
-        (
-            f"{explanation['confidence_score']:.0%}"
-        ),
+        "Estimated Confidence",
+        f"{explanation['confidence_score']:.0%}",
     )
 
-    provider_errors = stored_result.get(
-        "provider_errors",
-        [],
-    )
-
+    provider_errors = stored_result.get("provider_errors", [])
     if provider_errors:
-        with st.expander(
-            "View provider failover details"
-        ):
+        with st.expander("View provider failover details"):
             for provider_error in provider_errors:
                 st.warning(
                     f"{provider_error['provider']} "
@@ -1119,77 +1061,61 @@ if stored_result:
                 )
 
     if (
-        stored_result.get(
-            "generation_method"
-        )
+        stored_result.get("generation_method")
         == "Deterministic Fallback"
     ):
         st.warning(
-            "Both external providers were unavailable. "
-            "A deterministic evidence-based explanation "
-            "was generated."
+            "Both external providers were unavailable. A deterministic "
+            "numerical evidence-based explanation was generated."
         )
 
     st.markdown("#### Summary")
-    st.write(
-        explanation["summary"]
-    )
+    st.write(explanation["summary"])
 
     render_string_list(
-        "Observed Evidence",
+        "Confirmed Anomaly Evidence",
         explanation["observed_evidence"],
     )
-
     render_string_list(
         "Passed Controls",
         explanation["passed_controls"],
     )
-
     render_string_list(
-        "Potential Causes to Investigate",
+        "Ranked Likely Causes and Required Verification",
         explanation["potential_causes"],
     )
-
     render_string_list(
         "Recommended Actions",
         explanation["recommended_actions"],
     )
-
     render_string_list(
         "Rule Citations",
         explanation["rule_citations"],
     )
-
     render_string_list(
         "Limitations",
         explanation["limitations"],
     )
 
-    if explanation[
-        "human_review_required"
-    ]:
+    if explanation["human_review_required"]:
         st.warning(
-            "Human review is required before a final "
-            "invoice-processing decision is recorded."
+            "Human review is required before a final invoice-processing "
+            "decision is recorded."
         )
-
     else:
         st.info(
-            "The model did not mark human review as mandatory. "
-            "Existing business controls must still be followed."
+            "The model did not mark human review as mandatory. Existing "
+            "business controls must still be followed."
         )
 
     removed_citations = explanation.get(
         "removed_unsupported_citations",
         [],
     )
-
     if removed_citations:
         st.warning(
             "Unsupported citations removed: "
-            + ", ".join(
-                removed_citations
-            )
+            + ", ".join(removed_citations)
         )
 
     explanation_json = json.dumps(
@@ -1199,17 +1125,17 @@ if stored_result:
     ).encode("utf-8")
 
     st.download_button(
-        "Download Grounded Explanation",
+        "Download Enhanced Root-Cause Explanation",
         data=explanation_json,
         file_name=(
             f"{evidence['safe_invoice_alias']}"
-            "_grounded_explanation.json"
+            "_enhanced_root_cause_explanation.json"
         ),
         mime="application/json",
         use_container_width=True,
     )
 
     st.success(
-        "The grounded explanation has been stored "
-        "for Step 9: Human Review."
+        "The enhanced explanation has been stored for Step 9: "
+        "Human Review."
     )
