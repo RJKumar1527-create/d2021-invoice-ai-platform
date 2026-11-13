@@ -1,4 +1,4 @@
-# AI-Powered D2021 Invoice Validation and Reconciliation Platform
+# AI Invoice Reconciliation & Anomaly Detection Platform
 
 An end-to-end Applied AI platform for parsing, validating, reconciling, analysing, and reviewing synthetic D2021 electricity invoice files.
 
