@@ -4,8 +4,8 @@ This sample is fully fabricated for portfolio testing. It contains no client, cu
 
 ## Files
 
-- `synthetic_d2021_demo.uff`: upload directly to the Streamlit File Upload page.
-- `synthetic_d2021_demo.uff.example`: Git-safe copy. Rename to `.uff` for local testing.
+- `synthetic_d2021_demo.txt`: upload directly to the Streamlit File Upload page.
+- `synthetic_d2021_demo.txt.example`: Git-safe copy. Rename to `.uff` for local testing.
 
 ## Contents
 

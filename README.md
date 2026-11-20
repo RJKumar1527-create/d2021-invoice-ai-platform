@@ -224,7 +224,7 @@ Threshold selection uses a labelled tuning set. Final metrics are calculated on 
 │   ├── 10_Final_Dashboard_Report.py
 │   └── 11_Model_Evaluation.py
 ├── sample_data/
-│   ├── synthetic_d2021_demo.uff.example
+│   ├── synthetic_d2021_demo.txt.example
 │   └── SYNTHETIC_SAMPLE_README.md
 └── tests/
     ├── conftest.py
@@ -285,13 +285,13 @@ Never commit `secrets.toml`.
 Copy or rename:
 
 ```text
-sample_data/synthetic_d2021_demo.uff.example
+sample_data/synthetic_d2021_demo.txt.example
 ```
 
 to:
 
 ```text
-sample_data/synthetic_d2021_demo.uff
+sample_data/synthetic_d2021_demo.txt
 ```
 
 ### 5. Start the application
