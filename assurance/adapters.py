@@ -9,12 +9,27 @@ from assurance.models import (
 
 
 def first_value(
-    source: dict[str, Any] | None,
+    source: Any,
     names: Iterable[str],
     default: Any = None,
 ) -> Any:
-    """Return the first populated value from several aliases."""
-    source = source or {}
+    """
+    Return the first populated value from a dictionary.
+
+    Lists and tuples are returned directly because pipeline
+    result collections may already be supplied as lists.
+    """
+    if source is None:
+        return default
+
+    if isinstance(
+        source,
+        (list, tuple),
+    ):
+        return source
+
+    if not isinstance(source, dict):
+        return default
 
     for name in names:
         value = source.get(name)

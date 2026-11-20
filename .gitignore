@@ -26,3 +26,7 @@ data/*.db-wal
 dist/
 build/
 '@ | Set-Content -Encoding utf8 ".gitignore"
+# Billing / Finance Ops runtime database
+data/billing_finance_ops.db
+data/billing_finance_ops.db-shm
+data/billing_finance_ops.db-wal

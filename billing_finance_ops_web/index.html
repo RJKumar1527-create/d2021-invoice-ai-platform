@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+<title>Billing / Finance Ops</title>
+<link
+    rel="stylesheet"
+    href="/assets/styles.css"
+>
+</head>
+
+<body>
+<header class="application-header">
+    <div>
+        <div class="product-name">
+            Billing / Finance Ops
+        </div>
+
+        <div class="product-subtitle">
+            Daily Invoice Assurance and
+            Financial Risk Control
+        </div>
+    </div>
+
+    <div class="header-position">
+        <span class="live-indicator"></span>
+        Assurance Control Room
+    </div>
+</header>
+
+<nav class="top-navigation">
+    <button
+        class="navigation-tab active"
+        data-page="control-room"
+    >
+        Control Room
+    </button>
+
+    <button
+        class="navigation-tab"
+        data-page="exceptions"
+    >
+        Exception Workbench
+    </button>
+
+    <button
+        class="navigation-tab"
+        data-page="supplier-queries"
+    >
+        Supplier Queries
+    </button>
+
+    <button
+        class="navigation-tab"
+        data-page="resolutions"
+    >
+        Resolutions
+    </button>
+
+    <button
+        class="navigation-tab"
+        data-page="reports"
+    >
+        Reports
+    </button>
+
+    <button
+        class="navigation-tab"
+        data-page="administration"
+    >
+        Administration
+    </button>
+</nav>
+
+<main class="page-container">
+    <section
+        id="control-room"
+        class="page active"
+    >
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">
+                    CURRENT ASSURANCE POSITION
+                </div>
+
+                <h1>
+                    Daily Finance Control Room
+                </h1>
+
+                <p>
+                    Monitor invoice clearance,
+                    financial exposure, and urgent
+                    business actions.
+                </p>
+            </div>
+
+            <div
+                id="currentRun"
+                class="run-badge"
+            >
+                No active run
+            </div>
+        </div>
+
+        <div class="metric-ribbon">
+            <div class="metric-cell">
+                <span>Invoices</span>
+                <strong id="metricInvoices">
+                    0
+                </strong>
+            </div>
+
+            <div class="metric-cell safe">
+                <span>Safe to Progress</span>
+                <strong id="metricSafe">
+                    0
+                </strong>
+            </div>
+
+            <div class="metric-cell warning">
+                <span>Exceptions</span>
+                <strong id="metricExceptions">
+                    0
+                </strong>
+            </div>
+
+            <div class="metric-cell danger">
+                <span>Financial Exposure</span>
+                <strong id="metricExposure">
+                    £0.00
+                </strong>
+            </div>
+
+            <div class="metric-cell query">
+                <span>Supplier Queries</span>
+                <strong id="metricQueries">
+                    0
+                </strong>
+            </div>
+        </div>
+
+        <div class="dashboard-columns">
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Financial Position</h2>
+                        <p>
+                            Value currently cleared,
+                            held, or exposed.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="financial-position">
+                    <div>
+                        <span>
+                            Total billed value
+                        </span>
+
+                        <strong id="metricValue">
+                            £0.00
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>
+                            Held invoice value
+                        </span>
+
+                        <strong
+                            id="metricHeld"
+                            class="warning-text"
+                        >
+                            £0.00
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>
+                            Exposure rate
+                        </span>
+
+                        <strong
+                            id="metricExposureRate"
+                            class="danger-text"
+                        >
+                            0%
+                        </strong>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Immediate Actions</h2>
+                        <p>
+                            Highest-priority controls
+                            requiring attention.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="actionSummary">
+                    No assurance run is available.
+                </div>
+            </article>
+        </div>
+
+        <article class="panel">
+            <div class="panel-heading">
+                <div>
+                    <h2>Recent Processing Runs</h2>
+                    <p>
+                        Operational history of daily
+                        billing assurance.
+                    </p>
+                </div>
+            </div>
+
+            <div id="runTable"></div>
+        </article>
+    </section>
+
+    <section
+        id="exceptions"
+        class="page"
+    >
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">
+                    PRIORITIZED BUSINESS QUEUE
+                </div>
+
+                <h1>Exception Workbench</h1>
+
+                <p>
+                    Review invoices ordered by
+                    business priority and financial
+                    exposure.
+                </p>
+            </div>
+        </div>
+
+        <div class="split-workspace">
+            <article class="panel queue-panel">
+                <div id="exceptionQueue"></div>
+            </article>
+
+            <article class="panel detail-panel">
+                <div
+                    id="invoiceInvestigation"
+                    class="empty-state"
+                >
+                    Select an invoice to review
+                    the business decision and evidence.
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section
+        id="supplier-queries"
+        class="page"
+    >
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">
+                    EXTERNAL BILLING EVIDENCE
+                </div>
+
+                <h1>Supplier Query Management</h1>
+
+                <p>
+                    Track disputed charges,
+                    supplier responses, and
+                    recovered value.
+                </p>
+            </div>
+        </div>
+
+        <article class="panel">
+            <div id="supplierQueryTable"></div>
+        </article>
+
+        <article
+            id="supplierQueryEditor"
+            class="panel hidden"
+        >
+            <h2>Update Supplier Query</h2>
+
+            <div class="form-grid">
+                <div>
+                    <label>Query status</label>
+
+                    <select id="queryStatus">
+                        <option>OPEN</option>
+                        <option>
+                            AWAITING RESPONSE
+                        </option>
+                        <option>
+                            RESPONSE RECEIVED
+                        </option>
+                        <option>
+                            CLARIFICATION REQUIRED
+                        </option>
+                        <option>
+                            RESPONSE ACCEPTED
+                        </option>
+                        <option>
+                            RESPONSE REJECTED
+                        </option>
+                        <option>RESOLVED</option>
+                        <option>CLOSED</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Recovered value</label>
+
+                    <input
+                        id="recoveredValue"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                    >
+                </div>
+
+                <div class="full">
+                    <label>Supplier response</label>
+
+                    <textarea
+                        id="supplierResponse"
+                    ></textarea>
+                </div>
+
+                <div class="full">
+                    <label>Final resolution</label>
+
+                    <textarea
+                        id="queryResolution"
+                    ></textarea>
+                </div>
+            </div>
+
+            <button
+                class="primary-button"
+                onclick="saveSupplierQuery()"
+            >
+                Save Query Update
+            </button>
+        </article>
+    </section>
+
+    <section
+        id="resolutions"
+        class="page"
+    >
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">
+                    HUMAN ASSURANCE DECISION
+                </div>
+
+                <h1>Resolution Workspace</h1>
+
+                <p id="selectedResolutionInvoice">
+                    Select an invoice from the
+                    Exception Workbench.
+                </p>
+            </div>
+        </div>
+
+        <article class="panel">
+            <div class="form-grid">
+                <div>
+                    <label>Workflow status</label>
+
+                    <select id="workflowStatus">
+                        <option>NEW</option>
+                        <option>IN REVIEW</option>
+                        <option>
+                            AWAITING SUPPLIER
+                        </option>
+                        <option>
+                            CORRECTION REQUIRED
+                        </option>
+                        <option>RESOLVED</option>
+                        <option>CLOSED</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Owner</label>
+
+                    <input
+                        id="resolutionOwner"
+                        value="Invoice Assurance"
+                    >
+                </div>
+
+                <div class="full">
+                    <label>Confirmed root cause</label>
+
+                    <textarea
+                        id="confirmedRootCause"
+                    ></textarea>
+                </div>
+
+                <div class="full">
+                    <label>Resolution notes</label>
+
+                    <textarea
+                        id="resolutionNotes"
+                    ></textarea>
+                </div>
+            </div>
+
+            <button
+                class="primary-button"
+                onclick="saveResolution()"
+            >
+                Save Resolution
+            </button>
+
+            <div id="resolutionMessage"></div>
+        </article>
+    </section>
+
+    <section
+        id="reports"
+        class="page"
+    >
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">
+                    ASSURANCE AND CONTROL REPORTING
+                </div>
+
+                <h1>Finance Assurance Reports</h1>
+
+                <p>
+                    Exposure, exception, query,
+                    and recovery reporting.
+                </p>
+            </div>
+
+            <a
+                class="primary-button download-link"
+                href="/api/exports/exceptions.csv"
+            >
+                Download Exception Register
+            </a>
+        </div>
+
+        <div
+            id="reportMetrics"
+            class="report-grid"
+        ></div>
+    </section>
+
+    <section
+        id="administration"
+        class="page"
+    >
+        <div class="page-heading">
+            <div>
+                <div class="eyebrow">
+                    PROCESSING AND MODEL GOVERNANCE
+                </div>
+
+                <h1>Administration</h1>
+
+                <p>
+                    Start demonstration processing
+                    and review technical status.
+                </p>
+            </div>
+        </div>
+
+        <article class="panel administration-panel">
+            <div>
+                <h2>Synthetic Daily Processing</h2>
+
+                <p>
+                    Run the controlled synthetic
+                    billing batch used for
+                    portfolio demonstration.
+                </p>
+            </div>
+
+            <button
+                id="runBatchButton"
+                class="primary-button"
+                onclick="runDailyBatch()"
+            >
+                Run Synthetic Daily Batch
+            </button>
+        </article>
+
+        <article class="panel">
+            <h2>Service Health</h2>
+            <div id="serviceHealth">
+                Not checked
+            </div>
+        </article>
+    </section>
+</main>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
