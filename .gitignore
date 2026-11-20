@@ -30,3 +30,7 @@ build/
 data/billing_finance_ops.db
 data/billing_finance_ops.db-shm
 data/billing_finance_ops.db-wal
+
+# Local source backups
+*.backup.py
+*.before-*.py
