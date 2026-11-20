@@ -34,3 +34,6 @@ data/billing_finance_ops.db-wal
 # Local source backups
 *.backup.py
 *.before-*.py
+
+# Local pipeline diagnostics
+diagnostics/
