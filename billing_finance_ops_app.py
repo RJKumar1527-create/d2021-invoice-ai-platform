@@ -24,6 +24,7 @@ from assurance.repository import (
     list_active_exceptions,
     list_daily_run_trend,
     list_invoice_results,
+    list_latest_active_exceptions,
     list_processing_runs,
     list_resolved_exceptions,
     list_supplier_queries,
@@ -46,6 +47,13 @@ WEB_ROOT = (
     / "billing_finance_ops_web"
 )
 
+from processing.daily_file_service import (
+    DailyFileProcessingError,
+    get_daily_intake_summary,
+    get_failed_files,
+    list_registered_files,
+    process_runtime_file,
+)
 
 async def home(request: Request):
     return FileResponse(
@@ -112,7 +120,7 @@ async def invoices_api(request: Request):
     )
 
     if exceptions_only:
-        results = list_active_exceptions(
+        results = list_latest_active_exceptions(
             run_id=run_id
         )
 
@@ -532,4 +540,110 @@ application.routes.append(
         supplier_query_summary_api,
         methods=["GET"],
     )
+)
+
+
+async def daily_intake_summary_api(
+    request: Request,
+):
+    run_date = request.query_params.get(
+        "run_date"
+    )
+
+    return JSONResponse(
+        get_daily_intake_summary(
+            run_date=run_date
+        )
+    )
+
+
+async def failed_files_api(
+    request: Request,
+):
+    return JSONResponse(
+        {
+            "files": get_failed_files()
+        }
+    )
+
+
+application.routes.extend(
+    [
+        Route(
+            "/api/daily-intake-summary",
+            daily_intake_summary_api,
+            methods=["GET"],
+        ),
+        Route(
+            "/api/failed-files",
+            failed_files_api,
+            methods=["GET"],
+        ),
+    ]
+)
+
+
+async def process_file_api(
+    request: Request,
+):
+    file_name = str(
+        request.headers.get(
+            "X-File-Name",
+            "",
+        )
+    ).strip()
+
+    file_bytes = await request.body()
+
+    try:
+        result = process_runtime_file(
+            file_name=file_name,
+            file_bytes=file_bytes,
+        )
+
+        return JSONResponse(result)
+
+    except DailyFileProcessingError as error:
+        return JSONResponse(
+            {
+                "error": str(error)
+            },
+            status_code=400,
+        )
+
+    except Exception as error:
+        return JSONResponse(
+            {
+                "error": (
+                    "The billing file could not "
+                    f"be processed: {error}"
+                )
+            },
+            status_code=500,
+        )
+
+
+async def registered_files_api(
+    request: Request,
+):
+    return JSONResponse(
+        {
+            "files": list_registered_files()
+        }
+    )
+
+
+application.routes.extend(
+    [
+        Route(
+            "/api/process-file",
+            process_file_api,
+            methods=["POST"],
+        ),
+        Route(
+            "/api/registered-files",
+            registered_files_api,
+            methods=["GET"],
+        ),
+    ]
 )

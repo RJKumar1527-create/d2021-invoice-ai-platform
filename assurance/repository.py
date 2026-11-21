@@ -1356,3 +1356,109 @@ def list_daily_run_trend(
         dict(row)
         for row in reversed(rows)
     ]
+
+
+def list_latest_active_exceptions(
+    run_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Return the latest unresolved assurance result for each
+    invoice number.
+
+    Older occurrences remain stored for audit and reporting,
+    but do not appear repeatedly in the operational queue.
+    """
+    sql = """
+        WITH ranked_exceptions AS (
+            SELECT
+                result_id,
+                ROW_NUMBER() OVER (
+                    PARTITION BY invoice_number
+                    ORDER BY
+                        created_at DESC,
+                        result_id DESC
+                ) AS result_rank
+            FROM invoice_assurance_results
+            WHERE
+                assurance_status = 'EXCEPTION'
+                AND workflow_status IN (
+                    'NEW',
+                    'IN REVIEW',
+                    'AWAITING SUPPLIER',
+                    'CORRECTION REQUIRED'
+                )
+    """
+
+    parameters: list[Any] = []
+
+    if run_id:
+        sql += """
+                AND run_id = ?
+        """
+
+        parameters.append(
+            run_id
+        )
+
+    sql += """
+        )
+        SELECT results.*
+        FROM invoice_assurance_results AS results
+        INNER JOIN ranked_exceptions AS ranked
+            ON ranked.result_id = results.result_id
+        WHERE ranked.result_rank = 1
+        ORDER BY
+            CASE results.priority
+                WHEN 'CRITICAL' THEN 1
+                WHEN 'HIGH' THEN 2
+                WHEN 'MEDIUM' THEN 3
+                WHEN 'LOW' THEN 4
+                ELSE 5
+            END,
+            results.estimated_exposure DESC,
+            results.risk_score DESC,
+            results.created_at DESC
+    """
+
+    with get_connection() as connection:
+        rows = connection.execute(
+            sql,
+            parameters,
+        ).fetchall()
+
+    output = []
+
+    for row in rows:
+        item = dict(row)
+
+        for field in [
+            "recommended_actions_json",
+            "unusual_features_json",
+            "validation_findings_json",
+            "rule_citations_json",
+        ]:
+            output_name = field.replace(
+                "_json",
+                "",
+            )
+
+            item[output_name] = json.loads(
+                item.pop(field)
+                or "[]"
+            )
+
+        item[
+            "requires_supplier_query"
+        ] = bool(
+            item[
+                "requires_supplier_query"
+            ]
+        )
+
+        item["blocks_approval"] = bool(
+            item["blocks_approval"]
+        )
+
+        output.append(item)
+
+    return output

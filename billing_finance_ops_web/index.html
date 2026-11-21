@@ -246,6 +246,103 @@
             </div>
         </div>
 
+        <article class="panel queue-filter-panel">
+            <div class="queue-filter-grid">
+                <div>
+                    <label for="exceptionPriorityFilter">
+                        Priority
+                    </label>
+
+                    <select
+                        id="exceptionPriorityFilter"
+                        onchange="applyExceptionFilters()"
+                    >
+                        <option value="">All priorities</option>
+                        <option value="CRITICAL">Critical</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="exceptionDecisionFilter">
+                        Decision
+                    </label>
+
+                    <select
+                        id="exceptionDecisionFilter"
+                        onchange="applyExceptionFilters()"
+                    >
+                        <option value="">All decisions</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="exceptionStatusFilter">
+                        Workflow status
+                    </label>
+
+                    <select
+                        id="exceptionStatusFilter"
+                        onchange="applyExceptionFilters()"
+                    >
+                        <option value="">All statuses</option>
+                        <option value="NEW">New</option>
+                        <option value="IN REVIEW">In Review</option>
+                        <option value="AWAITING SUPPLIER">
+                            Awaiting Supplier
+                        </option>
+                        <option value="CORRECTION REQUIRED">
+                            Correction Required
+                        </option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="exceptionSourceFilter">
+                        Source file
+                    </label>
+
+                    <select
+                        id="exceptionSourceFilter"
+                        onchange="applyExceptionFilters()"
+                    >
+                        <option value="">All source files</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="exceptionRunFilter">
+                        Processing run
+                    </label>
+
+                    <select
+                        id="exceptionRunFilter"
+                        onchange="applyExceptionFilters()"
+                    >
+                        <option value="">All runs</option>
+                    </select>
+                </div>
+
+                <div class="queue-filter-actions">
+                    <button
+                        class="compact-button"
+                        onclick="clearExceptionFilters()"
+                    >
+                        Clear Filters
+                    </button>
+                </div>
+            </div>
+
+            <div
+                id="exceptionQueuePosition"
+                class="queue-position"
+            >
+                Loading active exceptions...
+            </div>
+        </article>
+
         <div class="split-workspace">
             <article class="panel queue-panel">
                 <div id="exceptionQueue"></div>
@@ -464,51 +561,121 @@
     </section>
 
     <section
-        id="administration"
-        class="page"
-    >
-        <div class="page-heading">
-            <div>
-                <div class="eyebrow">
-                    PROCESSING AND MODEL GOVERNANCE
-                </div>
+    id="administration"
+    class="page"
+>
+    <div class="page-heading">
+        <div>
+            <div class="eyebrow">
+                PROCESSING AND CONTROL GOVERNANCE
+            </div>
 
-                <h1>Administration</h1>
+            <h1>Administration</h1>
+
+            <p>
+                Register daily billing files and monitor
+                file-processing outcomes.
+            </p>
+        </div>
+    </div>
+
+    <article class="panel">
+        <h2>Register Daily Billing Files</h2>
+
+        <p>
+            Select one or more runtime .uff billing files
+            or synthetic .txt demonstration files. Each
+            file is validated, processed, and registered
+            independently.
+        </p>
+
+        <div class="file-registration">
+            <input
+                id="billingFile"
+                type="file"
+                accept=".uff,.txt"
+                multiple
+            >
+
+            <button
+                id="processFileButton"
+                class="primary-button"
+                onclick="processSelectedFile()"
+            >
+                Process Selected Files
+            </button>
+        </div>
+
+        <div id="fileProcessingMessage"></div>
+    </article>
+
+    <article class="panel">
+        <div class="intake-heading">
+            <div>
+                <h2>Daily File Intake</h2>
 
                 <p>
-                    Start demonstration processing
-                    and review technical status.
+                    Review file-registration and
+                    processing activity by date.
                 </p>
+            </div>
+
+            <div class="intake-date-control">
+                <label for="intakeDate">
+                    Processing date
+                </label>
+
+                <input
+                    id="intakeDate"
+                    type="date"
+                    onchange="loadDailyIntakeSummary()"
+                >
             </div>
         </div>
 
-        <article class="panel administration-panel">
-            <div>
-                <h2>Synthetic Daily Processing</h2>
+        <div
+            id="dailyIntakeSummary"
+            class="intake-summary"
+        >
+            No intake activity is available.
+        </div>
+    </article>
 
-                <p>
-                    Run the controlled synthetic
-                    billing batch used for
-                    portfolio demonstration.
-                </p>
-            </div>
+    <article class="panel">
+        <h2>Registered File History</h2>
 
-            <button
-                id="runBatchButton"
-                class="primary-button"
-                onclick="runDailyBatch()"
-            >
-                Run Synthetic Daily Batch
-            </button>
-        </article>
+        <div id="registeredFileTable">
+            No billing files have been registered.
+        </div>
+    </article>
 
-        <article class="panel">
-            <h2>Service Health</h2>
-            <div id="serviceHealth">
-                Not checked
-            </div>
-        </article>
-    </section>
+    <article class="panel administration-panel">
+        <div>
+            <h2>Synthetic Assurance Scenario</h2>
+
+            <p>
+                Run the predefined three-invoice
+                scenario without registering a file.
+            </p>
+        </div>
+
+        <button
+            id="runBatchButton"
+            class="compact-button"
+            onclick="runDailyBatch()"
+        >
+            Run Synthetic Scenario
+        </button>
+    </article>
+
+    <article class="panel">
+        <h2>Service Health</h2>
+
+        <div id="serviceHealth">
+            Not checked
+        </div>
+    </article>
+</section>
 </main>
 
 <script src="/assets/app.js"></script>
