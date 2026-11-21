@@ -2140,6 +2140,7 @@ if (administrationTab) {
 
             loadRegisteredFiles();
             loadDailyIntakeSummary();
+            loadProcessingRecovery();
 
             if (
                 typeof loadHealth
@@ -2149,4 +2150,267 @@ if (administrationTab) {
             }
         }
     );
+}
+
+
+async function loadProcessingRecovery() {
+    const summary = document.getElementById(
+        "processingRecoverySummary"
+    );
+
+    const table = document.getElementById(
+        "processingRecoveryTable"
+    );
+
+    const refreshButton = document.getElementById(
+        "refreshRecoveryButton"
+    );
+
+    if (!summary || !table) {
+        return;
+    }
+
+    if (refreshButton) {
+        refreshButton.disabled = true;
+        refreshButton.textContent = "Checking...";
+    }
+
+    summary.innerHTML = `
+        <div class="status-message">
+            Checking for failed and stale processing records...
+        </div>
+    `;
+
+    try {
+        const response = await fetch(
+            "/api/processing-recovery"
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                result.error
+                || "Recovery records could not be loaded."
+            );
+        }
+
+        const records = result.records || [];
+
+        const failedCount = records.filter(
+            item => item.processing_status
+            === "FAILED"
+        ).length;
+
+        const staleCount = records.filter(
+            item => item.processing_status
+            === "RECOVERY REQUIRED"
+        ).length;
+
+        summary.innerHTML = `
+            <div class="recovery-metric">
+                <span>Recovery Records</span>
+                <strong>${records.length}</strong>
+            </div>
+
+            <div class="recovery-metric">
+                <span>Failed</span>
+                <strong>${failedCount}</strong>
+            </div>
+
+            <div class="recovery-metric">
+                <span>Stale</span>
+                <strong>${staleCount}</strong>
+            </div>
+
+            <div class="recovery-metric">
+                <span>Newly Marked Stale</span>
+                <strong>
+                    ${result.stale_records_marked || 0}
+                </strong>
+            </div>
+        `;
+
+        table.innerHTML = records.length
+            ? `
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Status</th>
+                                <th>Stage</th>
+                                <th>Failure Code</th>
+                                <th>Last Activity</th>
+                                <th>Retries</th>
+                                <th>Reason</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            ${records.map(
+                                item => `
+                                    <tr>
+                                        <td>
+                                            <strong>
+                                                ${escapeHtml(
+                                                    item.file_name
+                                                )}
+                                            </strong>
+
+                                            <div class="queue-secondary">
+                                                Registry #${item.registry_id}
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            <span class="file-status file-status-${
+                                                String(
+                                                    item.processing_status
+                                                )
+                                                    .toLowerCase()
+                                                    .replaceAll(
+                                                        " ",
+                                                        "-"
+                                                    )
+                                            }">
+                                                ${escapeHtml(
+                                                    item.processing_status
+                                                )}
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            ${escapeHtml(
+                                                item.processing_stage
+                                                || "UNKNOWN"
+                                            )}
+                                        </td>
+
+                                        <td>
+                                            <code>
+                                                ${escapeHtml(
+                                                    item.failure_code
+                                                    || "NOT RECORDED"
+                                                )}
+                                            </code>
+                                        </td>
+
+                                        <td>
+                                            ${escapeHtml(
+                                                item.last_activity_at
+                                                || item.received_at
+                                                || ""
+                                            )}
+                                        </td>
+
+                                        <td>
+                                            ${Number(
+                                                item.retry_count || 0
+                                            )}
+                                        </td>
+
+                                        <td class="recovery-reason">
+                                            ${escapeHtml(
+                                                item.failure_reason
+                                                || ""
+                                            )}
+                                        </td>
+
+                                        <td>
+                                            <button
+                                                class="compact-button"
+                                                onclick="authorizeProcessingRetry(
+                                                    ${Number(
+                                                        item.registry_id
+                                                    )}
+                                                )"
+                                            >
+                                                Authorize Retry
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `
+                            ).join("")}
+                        </tbody>
+                    </table>
+                </div>
+            `
+            : `
+                <div class="empty-state compact-empty-state">
+                    No failed or stale processing records.
+                </div>
+            `;
+    }
+    catch (error) {
+        summary.innerHTML = "";
+
+        table.innerHTML = `
+            <div class="error-message visible-message">
+                ${escapeHtml(error.message)}
+            </div>
+        `;
+    }
+    finally {
+        if (refreshButton) {
+            refreshButton.disabled = false;
+            refreshButton.textContent = (
+                "Refresh Recovery Queue"
+            );
+        }
+    }
+}
+
+
+async function authorizeProcessingRetry(
+    registryId
+) {
+    const confirmed = window.confirm(
+        "Authorize retry for this file record? "
+        + "The original billing file must be "
+        + "selected and uploaded again."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `/api/processing-recovery/${
+                encodeURIComponent(registryId)
+            }/authorize`,
+            {
+                method: "POST"
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                result.error
+                || "Retry could not be authorized."
+            );
+        }
+
+        window.alert(
+            "Retry authorized. Select the original "
+            + "billing file in Register Daily Billing "
+            + "Files and process it again."
+        );
+
+        await Promise.all(
+            [
+                loadProcessingRecovery(),
+                loadRegisteredFiles()
+            ]
+        );
+    }
+    catch (error) {
+        window.alert(
+            error.message
+        );
+    }
 }

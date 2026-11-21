@@ -642,6 +642,41 @@
     </article>
 
     <article class="panel">
+        <div class="recovery-heading">
+            <div>
+                <h2>Processing Recovery</h2>
+
+                <p>
+                    Review failed or stale billing-file
+                    processing records. Authorizing a retry
+                    does not retain or reprocess source data.
+                    Select the original file again after
+                    authorization.
+                </p>
+            </div>
+
+            <button
+                id="refreshRecoveryButton"
+                class="compact-button"
+                onclick="loadProcessingRecovery()"
+            >
+                Refresh Recovery Queue
+            </button>
+        </div>
+
+        <div
+            id="processingRecoverySummary"
+            class="recovery-summary"
+        >
+            Checking processing recovery status...
+        </div>
+
+        <div id="processingRecoveryTable">
+            No failed or stale processing records.
+        </div>
+    </article>
+
+    <article class="panel">
         <h2>Registered File History</h2>
 
         <div id="registeredFileTable">
