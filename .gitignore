@@ -37,3 +37,5 @@ data/billing_finance_ops.db-wal
 
 # Local pipeline diagnostics
 diagnostics/
+.env.local
+.env.production

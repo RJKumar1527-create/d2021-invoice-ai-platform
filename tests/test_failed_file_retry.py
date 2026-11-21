@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import assurance.repository as repository
 import processing.daily_file_service as service
 
 
@@ -21,13 +22,25 @@ def configure_registry(
         / "failed_file_retry.db"
     )
 
+    assurance_path = (
+        tmp_path
+        / "failed_file_retry_assurance.db"
+    )
+
     monkeypatch.setattr(
         service,
         "REGISTRY_PATH",
         registry_path,
     )
 
+    monkeypatch.setattr(
+        repository,
+        "DATABASE_PATH",
+        assurance_path,
+    )
+
     service.initialise_registry()
+    repository.initialise_repository()
 
     return registry_path
 

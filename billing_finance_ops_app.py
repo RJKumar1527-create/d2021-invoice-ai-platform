@@ -13,6 +13,8 @@ from starlette.responses import (
 from starlette.routing import Route
 from starlette.staticfiles import StaticFiles
 
+from configuration.settings import settings
+
 from assurance.repository import (
     create_supplier_query,
     get_exception_ageing_summary,
@@ -102,6 +104,16 @@ async def latest_dashboard_api(
 
 
 async def demo_run_api(request: Request):
+    if not settings.demo_mode:
+        return JSONResponse(
+            {
+                "error": (
+                    "Synthetic processing is disabled."
+                )
+            },
+            status_code=403,
+        )
+
     try:
         return JSONResponse(
             run_synthetic_demo()
@@ -603,7 +615,42 @@ async def process_file_api(
         )
     ).strip()
 
+    file_extension = Path(
+        file_name
+    ).suffix.lower()
+
+    if (
+        file_extension
+        not in settings.allowed_file_extensions
+    ):
+        return JSONResponse(
+            {
+                "error": (
+                    "Unsupported billing-file extension. "
+                    "Allowed extensions: "
+                    + ", ".join(
+                        settings.allowed_file_extensions
+                    )
+                )
+            },
+            status_code=400,
+        )
+
     file_bytes = await request.body()
+
+    if (
+        len(file_bytes)
+        > settings.max_file_size_bytes
+    ):
+        return JSONResponse(
+            {
+                "error": (
+                    "The billing file exceeds the "
+                    f"{settings.max_file_size_mb} MB limit."
+                )
+            },
+            status_code=413,
+        )
 
     try:
         result = process_runtime_file(
@@ -878,6 +925,23 @@ application.routes.append(
             "evidence-pack"
         ),
         invoice_evidence_pack_api,
+        methods=["GET"],
+    )
+)
+
+
+async def configuration_api(
+    request: Request,
+):
+    return JSONResponse(
+        settings.public_configuration()
+    )
+
+
+application.routes.append(
+    Route(
+        "/api/configuration",
+        configuration_api,
         methods=["GET"],
     )
 )
