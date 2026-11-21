@@ -339,12 +339,17 @@ def complete_registry_record(
                 processing_status = 'COMPLETED',
                 processing_run_id = ?,
                 failure_reason = '',
+                processing_stage = 'COMPLETED',
+                failure_code = '',
+                recovery_required = 0,
+                last_activity_at = ?,
                 completed_at = ?
             WHERE registry_id = ?
             """,
             (
                 invoice_count,
                 processing_run_id,
+                utc_timestamp(),
                 utc_timestamp(),
                 registry_id,
             ),
@@ -910,6 +915,12 @@ def process_runtime_file(
         validation_checks
     )
 
+    from processing.recovery_service import (
+        initialise_recovery_schema,
+    )
+
+    initialise_recovery_schema()
+
     registry_id = register_file(
         file_name=file_name,
         checksum=checksum,
@@ -920,9 +931,55 @@ def process_runtime_file(
         record_count=len(lines),
     )
 
+    from processing.recovery_service import (
+        record_processing_failure,
+        update_processing_stage,
+    )
+
+    current_stage = "REGISTERED"
+
+    failure_codes = {
+        "REGISTERED": (
+            "UNEXPECTED_PROCESSING_FAILURE"
+        ),
+        "PARSING": "PARSING_FAILED",
+        "INVOICE VALIDATION": (
+            "INVOICE_VALIDATION_FAILED"
+        ),
+        "RECONCILIATION": (
+            "RECONCILIATION_FAILED"
+        ),
+        "PATTERN ANALYSIS": (
+            "PATTERN_ANALYSIS_FAILED"
+        ),
+        "RISK SCORING": (
+            "RISK_SCORING_FAILED"
+        ),
+        "ASSURANCE": "ASSURANCE_FAILED",
+        "PERSISTENCE": (
+            "PERSISTENCE_FAILED"
+        ),
+    }
+
+    def enter_stage(
+        stage,
+    ):
+        nonlocal current_stage
+
+        current_stage = stage
+
+        update_processing_stage(
+            registry_id=registry_id,
+            stage=stage,
+        )
+
     try:
         modules = (
             load_processing_modules()
+        )
+
+        enter_stage(
+            "PARSING"
         )
 
         parsed_data = (
@@ -950,11 +1007,19 @@ def process_runtime_file(
                 "in the billing file."
             )
 
+        enter_stage(
+            "INVOICE VALIDATION"
+        )
+
         raw_validation = (
             modules["validation"]
             .validate_invoices(
                 parsed_data
             )
+        )
+
+        enter_stage(
+            "RECONCILIATION"
         )
 
         raw_reconciliation = (
@@ -978,11 +1043,19 @@ def process_runtime_file(
             )
         )
 
+        enter_stage(
+            "PATTERN ANALYSIS"
+        )
+
         anomaly_rows = (
             build_anomaly_results(
                 parsed_data,
                 modules["anomaly"],
             )
+        )
+
+        enter_stage(
+            "RISK SCORING"
         )
 
         raw_risk = (
@@ -999,6 +1072,10 @@ def process_runtime_file(
             normalize_risk_results(
                 raw_risk
             )
+        )
+
+        enter_stage(
+            "ASSURANCE"
         )
 
         assurance_result = (
@@ -1018,6 +1095,10 @@ def process_runtime_file(
                     file_name
                 ],
             )
+        )
+
+        enter_stage(
+            "PERSISTENCE"
         )
 
         processing_run_id = (
@@ -1078,10 +1159,26 @@ def process_runtime_file(
         }
 
     except Exception as error:
-        fail_registry_record(
-            registry_id=registry_id,
-            reason=str(error),
+        failure_code = failure_codes.get(
+            current_stage,
+            (
+                "UNEXPECTED_PROCESSING_FAILURE"
+            ),
         )
+
+        try:
+            record_processing_failure(
+                registry_id=registry_id,
+                stage=current_stage,
+                failure_code=failure_code,
+                reason=str(error),
+            )
+
+        except Exception:
+            fail_registry_record(
+                registry_id=registry_id,
+                reason=str(error),
+            )
 
         raise
 
