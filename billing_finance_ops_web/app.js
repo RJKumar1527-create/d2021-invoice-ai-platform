@@ -1004,12 +1004,30 @@ async function selectInvoice(
                         </p>
                     </div>
 
-                    <button
-                        class="compact-button"
-                        onclick="loadInvoiceAuditHistory()"
-                    >
-                        Refresh Timeline
-                    </button>
+                    <div class="audit-timeline-actions">
+                        <label
+                            class="audit-filter-control"
+                            for="auditEventFilter"
+                        >
+                            <span>Event type</span>
+
+                            <select
+                                id="auditEventFilter"
+                                onchange="filterInvoiceAuditHistory()"
+                            >
+                                <option value="">
+                                    All events
+                                </option>
+                            </select>
+                        </label>
+
+                        <button
+                            class="compact-button"
+                            onclick="loadInvoiceAuditHistory()"
+                        >
+                            Refresh Timeline
+                        </button>
+                    </div>
                 </div>
 
                 <div
@@ -2446,6 +2464,134 @@ async function authorizeProcessingRetry(
 }
 
 
+let invoiceAuditEvents = [];
+
+
+function auditEventFilterOptions(
+    events
+) {
+    const eventTypes = [
+        ...new Set(
+            events
+                .map(item => item.event_type)
+                .filter(Boolean)
+        )
+    ].sort(
+        (left, right) => (
+            auditEventLabel(left).localeCompare(
+                auditEventLabel(right),
+                "en-GB"
+            )
+        )
+    );
+
+    return `
+        <option value="">
+            All events
+        </option>
+
+        ${eventTypes.map(
+            eventType => `
+                <option value="${escapeHtml(eventType)}">
+                    ${escapeHtml(
+                        auditEventLabel(eventType)
+                    )}
+                </option>
+            `
+        ).join("")}
+    `;
+}
+
+
+function renderInvoiceAuditEvents(
+    events
+) {
+    const container = document.getElementById(
+        "invoiceAuditTimeline"
+    );
+
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = events.length
+        ? events.map(
+            item => `
+                <article class="audit-event">
+                    <div class="audit-marker"></div>
+
+                    <div class="audit-event-content">
+                        <div class="audit-event-heading">
+                            <strong>
+                                ${escapeHtml(
+                                    auditEventLabel(
+                                        item.event_type
+                                    )
+                                )}
+                            </strong>
+
+                            <span>
+                                ${escapeHtml(
+                                    formatAuditDateTime(
+                                        item.created_at
+                                    )
+                                )}
+                            </span>
+                        </div>
+
+                        <div class="audit-event-meta">
+                            ${escapeHtml(
+                                item.scope
+                            )}
+
+                            · Audit #${Number(
+                                item.audit_id
+                            )}
+                        </div>
+
+                        ${formatAuditPayload(
+                            item.payload,
+                            item.event_type
+                        )}
+                    </div>
+                </article>
+            `
+        ).join("")
+        : `
+            <div class="empty-state compact-empty-state">
+                No audit events match the selected
+                event type.
+            </div>
+        `;
+}
+
+
+function filterInvoiceAuditHistory() {
+    const filter = document.getElementById(
+        "auditEventFilter"
+    );
+
+    const selectedEventType = (
+        filter
+        ? filter.value
+        : ""
+    );
+
+    const filteredEvents = selectedEventType
+        ? invoiceAuditEvents.filter(
+            item => (
+                item.event_type
+                === selectedEventType
+            )
+        )
+        : invoiceAuditEvents;
+
+    renderInvoiceAuditEvents(
+        filteredEvents
+    );
+}
+
+
 function auditEventLabel(
     eventType
 ) {
@@ -2474,8 +2620,191 @@ function auditEventLabel(
 }
 
 
+function formatAuditDateTime(
+    value
+) {
+    if (!value) {
+        return "";
+    }
+
+    const parsed = new Date(value);
+
+    if (Number.isNaN(parsed.getTime())) {
+        return String(value);
+    }
+
+    return new Intl.DateTimeFormat(
+        "en-GB",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata",
+            timeZoneName: "short"
+        }
+    ).format(parsed);
+}
+
+
+function formatAuditDate(
+    value
+) {
+    if (!value) {
+        return "";
+    }
+
+    const text = String(value);
+    const match = text.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+    );
+
+    if (!match) {
+        return formatAuditDateTime(value);
+    }
+
+    const parsed = new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3])
+    );
+
+    return new Intl.DateTimeFormat(
+        "en-GB",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
+    ).format(parsed);
+}
+
+
+function formatAuditPercentage(
+    value
+) {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+        return String(value);
+    }
+
+    return `${
+        new Intl.NumberFormat(
+            "en-GB",
+            {
+                maximumFractionDigits: 2
+            }
+        ).format(numericValue)
+    }%`;
+}
+
+
+function formatAuditValue(
+    key,
+    value
+) {
+    const currencyFields = new Set(
+        [
+            "total_invoice_value",
+            "held_invoice_value",
+            "estimated_financial_exposure",
+            "disputed_amount",
+            "invoice_value",
+            "amount",
+            "resolved_amount"
+        ]
+    );
+
+    const percentageFields = new Set(
+        [
+            "clearance_rate",
+            "exception_rate",
+            "exposure_rate"
+        ]
+    );
+
+    const dateTimeFields = new Set(
+        [
+            "started_at",
+            "completed_at",
+            "created_at",
+            "updated_at",
+            "resolved_at",
+            "closed_at"
+        ]
+    );
+
+    const dateFields = new Set(
+        [
+            "run_date",
+            "due_date",
+            "invoice_date"
+        ]
+    );
+
+    if (currencyFields.has(key)) {
+        return money(value);
+    }
+
+    if (percentageFields.has(key)) {
+        return formatAuditPercentage(value);
+    }
+
+    if (dateTimeFields.has(key)) {
+        return formatAuditDateTime(value);
+    }
+
+    if (dateFields.has(key)) {
+        return formatAuditDate(value);
+    }
+
+    return String(value);
+}
+
+
+function renderAuditPayloadEntries(
+    entries
+) {
+    if (!entries.length) {
+        return "";
+    }
+
+    return `
+        <dl class="audit-payload">
+            ${entries.map(
+                ([key, value]) => `
+                    <div>
+                        <dt>
+                            ${escapeHtml(
+                                key.replaceAll(
+                                    "_",
+                                    " "
+                                )
+                            )}
+                        </dt>
+
+                        <dd>
+                            ${escapeHtml(
+                                formatAuditValue(
+                                    key,
+                                    value
+                                )
+                            )}
+                        </dd>
+                    </div>
+                `
+            ).join("")}
+        </dl>
+    `;
+}
+
+
 function formatAuditPayload(
-    payload
+    payload,
+    eventType = ""
 ) {
     if (
         !payload
@@ -2509,32 +2838,76 @@ function formatAuditPayload(
         return "";
     }
 
-    return `
-        <dl class="audit-payload">
-            ${entries.map(
-                ([key, value]) => `
-                    <div>
-                        <dt>
-                            ${escapeHtml(
-                                key.replaceAll(
-                                    "_",
-                                    " "
-                                )
-                            )}
-                        </dt>
+    const compactEvent = (
+        eventType === "PROCESSING_RUN_COMPLETED"
+        && entries.length > 6
+    );
 
-                        <dd>
-                            ${escapeHtml(
-                                String(value)
-                            )}
-                        </dd>
-                    </div>
+    if (!compactEvent) {
+        return renderAuditPayloadEntries(
+            entries
+        );
+    }
+
+    const importantFields = [
+        "run_status",
+        "total_invoices",
+        "total_invoice_value",
+        "safe_to_progress",
+        "exceptions",
+        "estimated_financial_exposure"
+    ];
+
+    const visibleEntries = importantFields
+        .map(
+            field => entries.find(
+                entry => entry[0] === field
+            )
+        )
+        .filter(Boolean)
+        .slice(0, 6);
+
+    entries.forEach(
+        entry => {
+            if (
+                visibleEntries.length < 6
+                && !visibleEntries.includes(entry)
+            ) {
+                visibleEntries.push(entry);
+            }
+        }
+    );
+
+    const remainingEntries = entries.filter(
+        entry => !visibleEntries.includes(entry)
+    );
+
+    return `
+        ${renderAuditPayloadEntries(
+            visibleEntries
+        )}
+
+        ${
+            remainingEntries.length
+                ? `
+                    <details class="audit-payload-details">
+                        <summary>
+                            Show all details
+                            <span>
+                                ${remainingEntries.length}
+                                more fields
+                            </span>
+                        </summary>
+
+                        ${renderAuditPayloadEntries(
+                            remainingEntries
+                        )}
+                    </details>
                 `
-            ).join("")}
-        </dl>
+                : ""
+        }
     `;
 }
-
 
 async function loadInvoiceAuditHistory() {
     const container = document.getElementById(
@@ -2577,54 +2950,35 @@ async function loadInvoiceAuditHistory() {
             );
         }
 
-        const events = result.events || [];
+        invoiceAuditEvents = result.events || [];
 
-        container.innerHTML = events.length
-            ? events.map(
-                item => `
-                    <article class="audit-event">
-                        <div class="audit-marker"></div>
+        const filter = document.getElementById(
+            "auditEventFilter"
+        );
 
-                        <div class="audit-event-content">
-                            <div class="audit-event-heading">
-                                <strong>
-                                    ${escapeHtml(
-                                        auditEventLabel(
-                                            item.event_type
-                                        )
-                                    )}
-                                </strong>
+        if (filter) {
+            const selectedEventType = filter.value;
 
-                                <span>
-                                    ${escapeHtml(
-                                        item.created_at
-                                    )}
-                                </span>
-                            </div>
+            filter.innerHTML = auditEventFilterOptions(
+                invoiceAuditEvents
+            );
 
-                            <div class="audit-event-meta">
-                                ${escapeHtml(
-                                    item.scope
-                                )}
+            const selectionStillExists = (
+                selectedEventType
+                && invoiceAuditEvents.some(
+                    item => (
+                        item.event_type
+                        === selectedEventType
+                    )
+                )
+            );
 
-                                · Audit #${Number(
-                                    item.audit_id
-                                )}
-                            </div>
+            filter.value = selectionStillExists
+                ? selectedEventType
+                : "";
+        }
 
-                            ${formatAuditPayload(
-                                item.payload
-                            )}
-                        </div>
-                    </article>
-                `
-            ).join("")
-            : `
-                <div class="empty-state compact-empty-state">
-                    No audit events are available for
-                    this invoice and processing run.
-                </div>
-            `;
+        filterInvoiceAuditHistory();
     }
     catch (error) {
         container.innerHTML = `

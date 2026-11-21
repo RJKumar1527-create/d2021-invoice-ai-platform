@@ -1025,3 +1025,131 @@ textarea {
         grid-template-columns: 1fr;
     }
 }
+
+.audit-payload-details {
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.audit-payload-details summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 2px 2px;
+    color: var(--teal);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+
+.audit-payload-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.audit-payload-details summary::after {
+    content: "+";
+    display: inline-grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    flex: 0 0 22px;
+    background: white;
+    border: 1px solid var(--teal);
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.audit-payload-details[open] summary::after {
+    content: "−";
+}
+
+.audit-payload-details summary span {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.audit-payload-details .audit-payload {
+    margin-top: 10px;
+}
+
+.audit-event-heading span {
+    flex: 0 0 auto;
+    max-width: 190px;
+    text-align: right;
+    line-height: 1.45;
+}
+
+@media (max-width: 650px) {
+    .audit-event-heading {
+        flex-direction: column;
+    }
+
+    .audit-event-heading span {
+        max-width: none;
+        text-align: left;
+    }
+
+    .audit-payload-details summary span {
+        display: none;
+    }
+}
+
+.audit-timeline-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.audit-filter-control {
+    display: grid;
+    gap: 4px;
+    min-width: 180px;
+}
+
+.audit-filter-control span {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.audit-filter-control select {
+    min-height: 38px;
+    padding: 7px 30px 7px 10px;
+    color: var(--text);
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.audit-filter-control select:focus {
+    border-color: var(--teal);
+    outline: 2px solid var(--teal-soft);
+    outline-offset: 1px;
+}
+
+@media (max-width: 650px) {
+    .audit-timeline-actions {
+        width: 100%;
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .audit-filter-control {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .audit-timeline-actions .compact-button {
+        width: 100%;
+    }
+}
