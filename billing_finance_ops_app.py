@@ -56,6 +56,12 @@ from processing.daily_file_service import (
     process_runtime_file,
 )
 
+from processing.recovery_service import (
+    authorize_retry,
+    list_recovery_records,
+    mark_stale_processing_records,
+)
+
 async def home(request: Request):
     return FileResponse(
         WEB_ROOT / "index.html"
@@ -686,4 +692,71 @@ application.routes.append(
         invoice_supplier_query_api,
         methods=["GET"],
     )
+)
+
+
+async def processing_recovery_api(
+    request: Request,
+):
+    stale_count = (
+        mark_stale_processing_records()
+    )
+
+    return JSONResponse(
+        {
+            "stale_records_marked": (
+                stale_count
+            ),
+            "records": (
+                list_recovery_records()
+            ),
+        }
+    )
+
+
+async def authorize_file_retry_api(
+    request: Request,
+):
+    registry_id = int(
+        request.path_params[
+            "registry_id"
+        ]
+    )
+
+    try:
+        record = authorize_retry(
+            registry_id
+        )
+
+        return JSONResponse(
+            {
+                "record": record
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            {
+                "error": str(error)
+            },
+            status_code=400,
+        )
+
+
+application.routes.extend(
+    [
+        Route(
+            "/api/processing-recovery",
+            processing_recovery_api,
+            methods=["GET"],
+        ),
+        Route(
+            (
+                "/api/processing-recovery/"
+                "{registry_id:int}/authorize"
+            ),
+            authorize_file_retry_api,
+            methods=["POST"],
+        ),
+    ]
 )
