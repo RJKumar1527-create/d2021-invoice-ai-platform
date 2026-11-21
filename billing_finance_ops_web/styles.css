@@ -911,3 +911,117 @@ textarea {
         grid-template-columns: 1fr;
     }
 }
+
+.audit-timeline-section {
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+}
+
+.audit-timeline-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.audit-timeline-heading p {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.audit-timeline {
+    position: relative;
+}
+
+.audit-event {
+    position: relative;
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 12px;
+    padding-bottom: 18px;
+}
+
+.audit-event:not(:last-child)::before {
+    position: absolute;
+    top: 14px;
+    bottom: 0;
+    left: 6px;
+    width: 2px;
+    background: var(--teal-soft);
+    content: "";
+}
+
+.audit-marker {
+    position: relative;
+    z-index: 1;
+    width: 14px;
+    height: 14px;
+    margin-top: 3px;
+    background: var(--teal);
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--teal);
+}
+
+.audit-event-content {
+    padding: 13px;
+    background: #f7f9fa;
+    border-radius: 8px;
+}
+
+.audit-event-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.audit-event-heading span {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.audit-event-meta {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.audit-payload {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0 0;
+}
+
+.audit-payload div {
+    padding: 8px;
+    background: white;
+    border-radius: 6px;
+}
+
+.audit-payload dt {
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: capitalize;
+}
+
+.audit-payload dd {
+    margin: 4px 0 0;
+    font-size: 12px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 650px) {
+    .audit-timeline-heading {
+        flex-direction: column;
+    }
+
+    .audit-payload {
+        grid-template-columns: 1fr;
+    }
+}

@@ -25,6 +25,7 @@ from assurance.repository import (
     list_active_exceptions,
     list_daily_run_trend,
     list_invoice_results,
+    list_invoice_audit_history,
     list_latest_active_exceptions,
     list_processing_runs,
     list_resolved_exceptions,
@@ -759,4 +760,59 @@ application.routes.extend(
             methods=["POST"],
         ),
     ]
+)
+
+
+async def invoice_audit_history_api(
+    request: Request,
+):
+    run_id = request.path_params[
+        "run_id"
+    ]
+
+    invoice_number = (
+        request.path_params[
+            "invoice_number"
+        ]
+    )
+
+    try:
+        events = (
+            list_invoice_audit_history(
+                run_id=run_id,
+                invoice_number=(
+                    invoice_number
+                ),
+            )
+        )
+
+        return JSONResponse(
+            {
+                "run_id": run_id,
+                "invoice_number": (
+                    invoice_number
+                ),
+                "events": events,
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            {
+                "error": str(error)
+            },
+            status_code=400,
+        )
+
+
+application.routes.append(
+    Route(
+        (
+            "/api/invoices/"
+            "{run_id}/{invoice_number}/"
+            "audit-history"
+        ),
+        invoice_audit_history_api,
+        methods=["GET"],
+    )
 )

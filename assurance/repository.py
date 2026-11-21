@@ -1485,3 +1485,110 @@ def list_latest_active_exceptions(
         output.append(item)
 
     return output
+
+
+def list_invoice_audit_history(
+    run_id: str,
+    invoice_number: str,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """
+    Return audit events for one invoice and processing run.
+
+    Run-level events are included because they establish the
+    processing context in which the invoice result was created.
+    """
+    normalized_run_id = str(
+        run_id
+    ).strip()
+
+    normalized_invoice_number = str(
+        invoice_number
+    ).strip()
+
+    if not normalized_run_id:
+        raise ValueError(
+            "A processing run ID is required."
+        )
+
+    if not normalized_invoice_number:
+        raise ValueError(
+            "An invoice number is required."
+        )
+
+    safe_limit = max(
+        1,
+        min(
+            int(limit),
+            1000,
+        ),
+    )
+
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                audit_id,
+                run_id,
+                invoice_number,
+                event_type,
+                event_payload_json,
+                created_at
+            FROM assurance_audit_history
+            WHERE
+                run_id = ?
+                AND (
+                    invoice_number = ?
+                    OR invoice_number IS NULL
+                )
+            ORDER BY
+                created_at ASC,
+                audit_id ASC
+            LIMIT ?
+            """,
+            (
+                normalized_run_id,
+                normalized_invoice_number,
+                safe_limit,
+            ),
+        ).fetchall()
+
+    output = []
+
+    for row in rows:
+        event = dict(row)
+
+        try:
+            payload = json.loads(
+                event.pop(
+                    "event_payload_json"
+                )
+                or "{}"
+            )
+
+        except (
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ):
+            payload = {
+                "raw_payload": event.pop(
+                    "event_payload_json",
+                    "",
+                )
+            }
+
+        event["payload"] = payload
+
+        event["scope"] = (
+            "RUN"
+            if event[
+                "invoice_number"
+            ]
+            is None
+            else "INVOICE"
+        )
+
+        output.append(event)
+
+    return output

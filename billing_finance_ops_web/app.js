@@ -992,7 +992,37 @@ async function selectInvoice(
                 id="investigationSummary"
                 class="investigation-summary"
             ></div>
+
+            <section class="audit-timeline-section">
+                <div class="audit-timeline-heading">
+                    <div>
+                        <h3>Audit Timeline</h3>
+
+                        <p>
+                            Processing, review, supplier-query,
+                            and resolution events for this invoice.
+                        </p>
+                    </div>
+
+                    <button
+                        class="compact-button"
+                        onclick="loadInvoiceAuditHistory()"
+                    >
+                        Refresh Timeline
+                    </button>
+                </div>
+
+                <div
+                    id="invoiceAuditTimeline"
+                    class="audit-timeline"
+                >
+                    Loading audit history...
+                </div>
+            </section>
         `;
+
+        await loadInvoiceAuditHistory();
+
     }
     catch (error) {
         panel.innerHTML = `
@@ -2412,5 +2442,195 @@ async function authorizeProcessingRetry(
         window.alert(
             error.message
         );
+    }
+}
+
+
+function auditEventLabel(
+    eventType
+) {
+    const labels = {
+        PROCESSING_RUN_COMPLETED:
+            "Processing Run Completed",
+
+        INVOICE_RESOLUTION_UPDATED:
+            "Invoice Resolution Updated",
+
+        SUPPLIER_QUERY_CREATED:
+            "Supplier Query Created",
+
+        SUPPLIER_QUERY_UPDATED:
+            "Supplier Query Updated",
+
+        INVESTIGATION_SUMMARY_GENERATED:
+            "Investigation Summary Generated"
+    };
+
+    return (
+        labels[eventType]
+        || String(eventType || "")
+            .replaceAll("_", " ")
+    );
+}
+
+
+function formatAuditPayload(
+    payload
+) {
+    if (
+        !payload
+        || typeof payload !== "object"
+    ) {
+        return "";
+    }
+
+    const ignoredFields = new Set(
+        [
+            "recommended_actions",
+            "validation_findings",
+            "rule_citations",
+            "unusual_features"
+        ]
+    );
+
+    const entries = Object.entries(
+        payload
+    ).filter(
+        ([key, value]) => (
+            !ignoredFields.has(key)
+            && value !== null
+            && value !== ""
+            && !Array.isArray(value)
+            && typeof value !== "object"
+        )
+    );
+
+    if (!entries.length) {
+        return "";
+    }
+
+    return `
+        <dl class="audit-payload">
+            ${entries.map(
+                ([key, value]) => `
+                    <div>
+                        <dt>
+                            ${escapeHtml(
+                                key.replaceAll(
+                                    "_",
+                                    " "
+                                )
+                            )}
+                        </dt>
+
+                        <dd>
+                            ${escapeHtml(
+                                String(value)
+                            )}
+                        </dd>
+                    </div>
+                `
+            ).join("")}
+        </dl>
+    `;
+}
+
+
+async function loadInvoiceAuditHistory() {
+    const container = document.getElementById(
+        "invoiceAuditTimeline"
+    );
+
+    if (!container || !selectedInvoice) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="status-message">
+            Loading audit history...
+        </div>
+    `;
+
+    try {
+        const endpoint = (
+            `/api/invoices/${
+                encodeURIComponent(
+                    selectedInvoice.run_id
+                )
+            }/${
+                encodeURIComponent(
+                    selectedInvoice.invoice_number
+                )
+            }/audit-history`
+        );
+
+        const response = await fetch(
+            endpoint
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                result.error
+                || "Audit history could not be loaded."
+            );
+        }
+
+        const events = result.events || [];
+
+        container.innerHTML = events.length
+            ? events.map(
+                item => `
+                    <article class="audit-event">
+                        <div class="audit-marker"></div>
+
+                        <div class="audit-event-content">
+                            <div class="audit-event-heading">
+                                <strong>
+                                    ${escapeHtml(
+                                        auditEventLabel(
+                                            item.event_type
+                                        )
+                                    )}
+                                </strong>
+
+                                <span>
+                                    ${escapeHtml(
+                                        item.created_at
+                                    )}
+                                </span>
+                            </div>
+
+                            <div class="audit-event-meta">
+                                ${escapeHtml(
+                                    item.scope
+                                )}
+
+                                · Audit #${Number(
+                                    item.audit_id
+                                )}
+                            </div>
+
+                            ${formatAuditPayload(
+                                item.payload
+                            )}
+                        </div>
+                    </article>
+                `
+            ).join("")
+            : `
+                <div class="empty-state compact-empty-state">
+                    No audit events are available for
+                    this invoice and processing run.
+                </div>
+            `;
+    }
+    catch (error) {
+        container.innerHTML = `
+            <div class="error-message visible-message">
+                ${escapeHtml(error.message)}
+            </div>
+        `;
     }
 }
