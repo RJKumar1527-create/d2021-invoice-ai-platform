@@ -19,7 +19,6 @@ from assurance.repository import (
     get_financial_control_summary,
     get_invoice_result,
     get_invoice_supplier_query,
-    get_invoice_supplier_query,
     get_report_summary,
     latest_run_summary,
     list_active_exceptions,
@@ -32,6 +31,9 @@ from assurance.repository import (
     list_supplier_queries,
     update_invoice_resolution,
     update_supplier_query,
+)
+from assurance.evidence_pack_service import (
+    build_invoice_evidence_pack,
 )
 from assurance.service import run_synthetic_demo
 from assurance.supplier_query_service import (
@@ -805,6 +807,56 @@ async def invoice_audit_history_api(
         )
 
 
+async def invoice_evidence_pack_api(
+    request: Request,
+):
+    run_id = request.path_params[
+        "run_id"
+    ]
+
+    invoice_number = request.path_params[
+        "invoice_number"
+    ]
+
+    try:
+        archive_bytes, filename = (
+            build_invoice_evidence_pack(
+                run_id=run_id,
+                invoice_number=(
+                    invoice_number
+                ),
+            )
+        )
+
+        return Response(
+            archive_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": (
+                    'attachment; filename="'
+                    f'{filename}"'
+                ),
+                "Cache-Control": (
+                    "no-store"
+                ),
+            },
+        )
+
+    except ValueError as error:
+        status_code = (
+            404
+            if "not found" in str(error).lower()
+            else 400
+        )
+
+        return JSONResponse(
+            {
+                "error": str(error)
+            },
+            status_code=status_code,
+        )
+
+
 application.routes.append(
     Route(
         (
@@ -813,6 +865,19 @@ application.routes.append(
             "audit-history"
         ),
         invoice_audit_history_api,
+        methods=["GET"],
+    )
+)
+
+
+application.routes.append(
+    Route(
+        (
+            "/api/invoices/"
+            "{run_id}/{invoice_number}/"
+            "evidence-pack"
+        ),
+        invoice_evidence_pack_api,
         methods=["GET"],
     )
 )

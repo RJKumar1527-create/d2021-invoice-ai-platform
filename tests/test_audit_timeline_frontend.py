@@ -132,3 +132,71 @@ def test_audit_timeline_styles_support_details_and_filter():
         ".audit-filter-control select {"
         in styles
     )
+
+
+def test_evidence_pack_download_control_is_available():
+    source = read_app_js()
+
+    assert (
+        "Download Evidence Pack"
+        in source
+    )
+
+    assert (
+        "async function "
+        "downloadInvoiceEvidencePack("
+        in source
+    )
+
+    assert (
+        'onclick="downloadInvoiceEvidencePack(this)"'
+        in source
+    )
+
+    assert (
+        "/evidence-pack"
+        in source
+    )
+
+
+def test_evidence_pack_download_uses_response_filename():
+    source = read_app_js()
+
+    assert (
+        '"Content-Disposition"'
+        in source
+    )
+
+    assert (
+        "response.blob()"
+        in source
+    )
+
+    assert (
+        "URL.createObjectURL(archive)"
+        in source
+    )
+
+    assert (
+        "link.download = filename"
+        in source
+    )
+
+    assert (
+        "URL.revokeObjectURL("
+        in source
+    )
+
+
+def test_evidence_pack_button_prevents_duplicate_downloads():
+    source = read_app_js()
+    styles = read_styles_css()
+
+    assert "button.disabled = true" in source
+    assert "button.disabled = false" in source
+
+    assert (
+        ".audit-timeline-actions "
+        ".compact-button:disabled"
+        in styles
+    )

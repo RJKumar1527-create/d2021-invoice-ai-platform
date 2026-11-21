@@ -1153,3 +1153,19 @@ textarea {
         width: 100%;
     }
 }
+
+.audit-timeline-actions .compact-button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+@media (max-width: 850px) {
+    .audit-timeline-heading {
+        flex-direction: column;
+    }
+
+    .audit-timeline-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+}

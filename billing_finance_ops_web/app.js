@@ -1023,6 +1023,13 @@ async function selectInvoice(
 
                         <button
                             class="compact-button"
+                            onclick="downloadInvoiceEvidencePack(this)"
+                        >
+                            Download Evidence Pack
+                        </button>
+
+                        <button
+                            class="compact-button"
                             onclick="loadInvoiceAuditHistory()"
                         >
                             Refresh Timeline
@@ -2908,6 +2915,135 @@ function formatAuditPayload(
         }
     `;
 }
+
+async function downloadInvoiceEvidencePack(
+    button
+) {
+    if (!selectedInvoice) {
+        window.alert(
+            "Select an invoice before downloading evidence."
+        );
+
+        return;
+    }
+
+    const originalText = button
+        ? button.textContent
+        : "";
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = (
+            "Preparing Evidence..."
+        );
+    }
+
+    try {
+        const endpoint = (
+            `/api/invoices/${
+                encodeURIComponent(
+                    selectedInvoice.run_id
+                )
+            }/${
+                encodeURIComponent(
+                    selectedInvoice.invoice_number
+                )
+            }/evidence-pack`
+        );
+
+        const response = await fetch(
+            endpoint,
+            {
+                method: "GET",
+                cache: "no-store"
+            }
+        );
+
+        if (!response.ok) {
+            let message = (
+                "Evidence pack could not be generated."
+            );
+
+            try {
+                const result = await response.json();
+
+                message = (
+                    result.error
+                    || message
+                );
+            }
+            catch (error) {
+                console.error(
+                    "Evidence-pack error response "
+                    + "could not be decoded:",
+                    error
+                );
+            }
+
+            throw new Error(message);
+        }
+
+        const archive = await response.blob();
+
+        const disposition = (
+            response.headers.get(
+                "Content-Disposition"
+            )
+            || ""
+        );
+
+        const filenameMatch = disposition.match(
+            /filename="?([^";]+)"?/i
+        );
+
+        const filename = filenameMatch
+            ? filenameMatch[1]
+            : (
+                "invoice-evidence-"
+                + selectedInvoice.run_id
+                + "-"
+                + selectedInvoice.invoice_number
+                + ".zip"
+            );
+
+        const downloadUrl = (
+            URL.createObjectURL(archive)
+        );
+
+        const link = document.createElement(
+            "a"
+        );
+
+        link.href = downloadUrl;
+        link.download = filename;
+
+        document.body.appendChild(link);
+
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(
+            downloadUrl
+        );
+    }
+    catch (error) {
+        window.alert(
+            error.message
+        );
+
+        console.error(
+            "Evidence-pack download failed:",
+            error
+        );
+    }
+    finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
 
 async function loadInvoiceAuditHistory() {
     const container = document.getElementById(
