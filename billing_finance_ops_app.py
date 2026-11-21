@@ -19,6 +19,7 @@ from assurance.repository import (
     get_financial_control_summary,
     get_invoice_result,
     get_invoice_supplier_query,
+    get_invoice_supplier_query,
     get_report_summary,
     latest_run_summary,
     list_active_exceptions,
@@ -646,4 +647,43 @@ application.routes.extend(
             methods=["GET"],
         ),
     ]
+)
+
+
+async def invoice_supplier_query_api(
+    request: Request,
+):
+    run_id = request.path_params[
+        "run_id"
+    ]
+
+    invoice_number = (
+        request.path_params[
+            "invoice_number"
+        ]
+    )
+
+    query = get_invoice_supplier_query(
+        run_id=run_id,
+        invoice_number=invoice_number,
+    )
+
+    return JSONResponse(
+        {
+            "available": query is not None,
+            "query": query,
+        }
+    )
+
+
+application.routes.append(
+    Route(
+        (
+            "/api/invoices/"
+            "{run_id}/{invoice_number}/"
+            "supplier-query"
+        ),
+        invoice_supplier_query_api,
+        methods=["GET"],
+    )
 )

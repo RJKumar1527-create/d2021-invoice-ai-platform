@@ -25,6 +25,70 @@ ALLOWED_QUERY_STATUSES = {
 }
 
 
+QUERY_STATUS_TRANSITIONS = {
+    "OPEN": {
+        "AWAITING RESPONSE",
+        "RESPONSE RECEIVED",
+        "CLOSED",
+    },
+    "AWAITING RESPONSE": {
+        "RESPONSE RECEIVED",
+        "CLARIFICATION REQUIRED",
+        "CLOSED",
+    },
+    "RESPONSE RECEIVED": {
+        "CLARIFICATION REQUIRED",
+        "RESPONSE ACCEPTED",
+        "RESPONSE REJECTED",
+    },
+    "CLARIFICATION REQUIRED": {
+        "AWAITING RESPONSE",
+        "RESPONSE RECEIVED",
+        "CLOSED",
+    },
+    "RESPONSE REJECTED": {
+        "AWAITING RESPONSE",
+        "CLARIFICATION REQUIRED",
+        "CLOSED",
+    },
+    "RESPONSE ACCEPTED": {
+        "RESOLVED",
+        "CLOSED",
+    },
+    "RESOLVED": {
+        "CLOSED",
+    },
+    "CLOSED": set(),
+}
+
+
+def validate_query_transition(
+    current_status: str,
+    requested_status: str,
+):
+    current = str(
+        current_status
+    ).strip().upper()
+
+    requested = str(
+        requested_status
+    ).strip().upper()
+
+    if current == requested:
+        return
+
+    allowed = QUERY_STATUS_TRANSITIONS.get(
+        current,
+        set(),
+    )
+
+    if requested not in allowed:
+        raise ValueError(
+            "Invalid supplier-query transition: "
+            f"{current} -> {requested}."
+        )
+
+
 def parse_date(
     value: str | None,
 ) -> date | None:
@@ -468,6 +532,14 @@ def update_query(
             "Supplier query was not found."
         )
 
+    validate_query_transition(
+        current_status=existing[
+            "query_status"
+        ],
+        requested_status=(
+            normalized_status
+        ),
+    )
     response_required_statuses = {
         "RESPONSE RECEIVED",
         "CLARIFICATION REQUIRED",

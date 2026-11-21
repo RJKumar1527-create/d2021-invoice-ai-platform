@@ -128,6 +128,19 @@ def test_recovered_value_cannot_exceed_dispute(
         monkeypatch,
     )
 
+    service.update_query(
+        query_id=query["query_id"],
+        query_status=(
+            "RESPONSE RECEIVED"
+        ),
+        supplier_response=(
+            "Supplier provided supporting "
+            "billing evidence."
+        ),
+        final_resolution="",
+        recovered_value=0,
+    )
+
     try:
         service.update_query(
             query_id=query["query_id"],
@@ -164,6 +177,19 @@ def test_accepted_response_resolves_invoice(
     query = create_test_query(
         tmp_path,
         monkeypatch,
+    )
+
+    service.update_query(
+        query_id=query["query_id"],
+        query_status=(
+            "RESPONSE RECEIVED"
+        ),
+        supplier_response=(
+            "Supplier provided supporting "
+            "billing evidence."
+        ),
+        final_resolution="",
+        recovered_value=0,
     )
 
     updated = service.update_query(

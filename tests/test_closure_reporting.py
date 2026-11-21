@@ -76,6 +76,19 @@ def accept_supplier_response(
     query,
     recovered_value=3500,
 ):
+    query_service.update_query(
+        query_id=query["query_id"],
+        query_status=(
+            "RESPONSE RECEIVED"
+        ),
+        supplier_response=(
+            "Supplier provided supporting "
+            "billing evidence."
+        ),
+        final_resolution="",
+        recovered_value=0,
+    )
+
     return query_service.update_query(
         query_id=query["query_id"],
         query_status=(
