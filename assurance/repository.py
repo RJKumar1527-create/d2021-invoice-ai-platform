@@ -312,6 +312,29 @@ def save_processing_run(
                 ),
             )
 
+        persisted_count = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM invoice_assurance_results
+            WHERE run_id = ?
+            """,
+            (
+                run.run_id,
+            ),
+        ).fetchone()[0]
+
+        expected_count = len(
+            run.invoices
+        )
+
+        if persisted_count != expected_count:
+            raise RuntimeError(
+                "Processing-run persistence "
+                "validation failed: expected "
+                f"{expected_count} invoice results "
+                f"but found {persisted_count}."
+            )
+
         connection.execute(
             """
             INSERT INTO assurance_audit_history (
