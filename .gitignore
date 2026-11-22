@@ -45,3 +45,4 @@ performance_results/*.uff
 performance_results/*.log
 performance_results/*.prof
 performance_results/benchmark-*.json
+.streamlit/secrets.toml
