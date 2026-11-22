@@ -61,6 +61,13 @@ from processing.daily_file_service import (
     process_runtime_file,
 )
 
+from monitoring.operations import (
+    CorrelationLoggingMiddleware,
+    database_health,
+    monitoring_snapshot,
+)
+
+
 from processing.recovery_service import (
     authorize_retry,
     list_recovery_records,
@@ -945,3 +952,108 @@ application.routes.append(
         methods=["GET"],
     )
 )
+
+
+async def live_health_api(
+    request: Request,
+):
+    return JSONResponse(
+        {
+            "status": "UP",
+            "application": (
+                "Billing / Finance Ops"
+            ),
+        }
+    )
+
+
+async def database_health_api(
+    request: Request,
+):
+    result = database_health()
+
+    return JSONResponse(
+        result,
+        status_code=(
+            200
+            if result["status"] == "UP"
+            else 503
+        ),
+    )
+
+
+async def readiness_health_api(
+    request: Request,
+):
+    result = database_health()
+
+    ready = (
+        result["status"] == "UP"
+    )
+
+    return JSONResponse(
+        {
+            "status": (
+                "READY"
+                if ready
+                else "NOT READY"
+            ),
+            "checks": result,
+        },
+        status_code=(
+            200
+            if ready
+            else 503
+        ),
+    )
+
+
+async def operations_metrics_api(
+    request: Request,
+):
+    result = monitoring_snapshot()
+
+    return JSONResponse(
+        result,
+        status_code=(
+            200
+            if result["status"]
+            in {
+                "UP",
+                "DEGRADED",
+            }
+            else 503
+        ),
+    )
+
+
+application.routes.extend(
+    [
+        Route(
+            "/health/live",
+            live_health_api,
+            methods=["GET"],
+        ),
+        Route(
+            "/health/ready",
+            readiness_health_api,
+            methods=["GET"],
+        ),
+        Route(
+            "/health/database",
+            database_health_api,
+            methods=["GET"],
+        ),
+        Route(
+            "/api/operations/metrics",
+            operations_metrics_api,
+            methods=["GET"],
+        ),
+    ]
+)
+
+
+application.add_middleware(
+    CorrelationLoggingMiddleware
+)
+
