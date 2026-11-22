@@ -196,6 +196,86 @@ def extract_validation_findings(
     return findings
 
 
+def create_validation_findings_lookup(
+    validation_results: Any,
+) -> tuple[
+    dict[str, list[dict[str, Any]]],
+    list[dict[str, Any]],
+]:
+    """
+    Index validation findings once per processing run.
+
+    Referenced findings are stored by invoice number.
+    Findings without an invoice reference are retained as
+    global findings and applied to every invoice, preserving
+    the previous adapter behavior.
+    """
+    if isinstance(
+        validation_results,
+        dict,
+    ):
+        possible_records = first_value(
+            validation_results,
+            [
+                "results",
+                "invoices",
+                "validation_results",
+                "findings",
+                "issues",
+            ],
+            [],
+        )
+
+    else:
+        possible_records = validation_results
+
+    findings_by_invoice = {}
+    global_findings = []
+
+    for record in safe_list(
+        possible_records
+    ):
+        if not isinstance(
+            record,
+            dict,
+        ):
+            continue
+
+        record_reference = (
+            normalize_invoice_reference(
+                record
+            )
+        )
+
+        extracted = (
+            extract_validation_findings(
+                record_reference,
+                [record],
+            )
+        )
+
+        if not extracted:
+            continue
+
+        if record_reference:
+            findings_by_invoice.setdefault(
+                record_reference,
+                [],
+            ).extend(
+                extracted
+            )
+
+        else:
+            global_findings.extend(
+                extracted
+            )
+
+    return (
+        findings_by_invoice,
+        global_findings,
+    )
+
+
 def count_validation_findings(
     findings: list[dict[str, Any]],
 ) -> tuple[int, int]:
@@ -307,6 +387,13 @@ def adapt_assurance_inputs(
     The adapter accepts multiple possible field names because
     the original workflow pages use different result schemas.
     """
+
+    (
+        validation_findings_lookup,
+        global_validation_findings,
+    ) = create_validation_findings_lookup(
+        validation_results
+    )
 
     reconciliation_lookup = create_lookup(
         first_value(
@@ -435,9 +522,15 @@ def adapt_assurance_inputs(
             {},
         )
 
-        findings = extract_validation_findings(
-            invoice_reference,
-            validation_results,
+        findings = list(
+            global_validation_findings
+        )
+
+        findings.extend(
+            validation_findings_lookup.get(
+                invoice_reference,
+                [],
+            )
         )
 
         (

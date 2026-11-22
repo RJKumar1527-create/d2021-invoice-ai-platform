@@ -39,3 +39,9 @@ data/billing_finance_ops.db-wal
 diagnostics/
 .env.local
 .env.production
+performance_results/*.db
+performance_results/*.txt
+performance_results/*.uff
+performance_results/*.log
+performance_results/*.prof
+performance_results/benchmark-*.json
